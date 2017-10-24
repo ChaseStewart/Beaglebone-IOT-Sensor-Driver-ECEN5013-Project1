@@ -1,8 +1,13 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#ifndef __MY_LOGGER_H__
+#define __MY_LOGGER_H__
+
+
 typedef enum message_type {HEARTBEAT, TEMP, LIGHT} Message_Type;
 
+#define LOGGER_ID 1
 
 /*Structure for message Queues*/
 typedef struct
@@ -30,5 +35,6 @@ void logInt(int32_t data);
 void logString(uint8_t* string, size_t length);
 
 /*Send heartbeat to main*/
-int8_t sendHeartbeat(void);
+#define sendHeartbeatLogger() sendHeartbeat(LOGGER_ID)
 
+#endif

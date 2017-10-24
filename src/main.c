@@ -66,3 +66,25 @@ int main(int argc, char **argv)
 	return 0;
 
 }
+
+/* ensure all heartbeats are received*/
+int8_t processHeartbeats(void)
+{
+	return 0;
+}
+
+/* request other thread to send heartbeat */
+int8_t reqHeartbeat(int8_t id)
+{
+	return 0;
+}
+
+/* send heartbeat to the heartbeat queue */
+int8_t sendHeartbeat(int8_t id)
+{
+	printf("Would have sent heartbeat from %d\n", id);
+	return 0;
+}
+
+
+

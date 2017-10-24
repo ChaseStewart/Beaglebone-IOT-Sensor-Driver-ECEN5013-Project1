@@ -1,7 +1,11 @@
 #include <stdint.h>
 
-#define TEMP_SLAVE_ADDR 0x00 // TODO FIXME
+#ifndef __MY_TEMP_DRIVER_H__
+#define __MY_TEMP_DRIVER_H__
 
+
+#define TEMP_SLAVE_ADDR 0x00 // TODO FIXME
+#define TEMP_ID 9
 
 /* Main function for the temperature driver*/
 void *mainTempDriver(void *);
@@ -18,6 +22,7 @@ int8_t readNTempRegisters(uint8_t regAddr, uint8_t *retval, uint8_t length);
 /* Function to write into the Temp Sensor Registers */
 int8_t writeTempRegisters(uint8_t regAddr, uint8_t data);
 
-/* Send heartbeat to main */
-int8_t sendHeartbeat(void);
+/*Send heartbeat to main*/
+#define sendHeartbeatTemp() sendHeartbeat(TEMP_ID)
 
+#endif 
