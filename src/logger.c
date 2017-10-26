@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "logger.h"
-
+#include "main.h"
 
 void * mainLogger(void *arg)
 {
