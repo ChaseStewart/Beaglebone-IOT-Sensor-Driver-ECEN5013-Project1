@@ -5,9 +5,9 @@
 #ifndef __MY_MAIN_H__
 #define __MY_MAIN_H__
 
-#define MAIN_QUEUE_NAME "/heartbeat\x00"
-#define MAIN_MSG_SIZE  100 
-#define MAIN_NUM_MSGS 1000
+#define MAIN_QUEUE_NAME "/heartbeat1\x00"
+#define MAIN_MSG_SIZE   100 
+#define MAIN_NUM_MSGS   1000
 
 #define STATE_RUNNING  0
 #define STATE_ERROR    1
@@ -38,5 +38,7 @@ int8_t reqHeartbeat(int8_t id);
 
 /* send heartbeat to the heartbeat queue */
 int8_t sendHeartbeat(int8_t id);
+
+void heartbeatAlarm(int sig);
 
 #endif

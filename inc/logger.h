@@ -6,6 +6,10 @@
 
 #define LOGGER_ID 1
 
+#define LOGGER_QUEUE_NAME "/logger\x00"
+#define LOGGER_MSG_SIZE   100
+#define MAIN_NUM_MSGS  	  1000
+
 /* main program for logger */
 void *mainLogger(void *);
 
