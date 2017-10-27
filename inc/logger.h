@@ -4,8 +4,6 @@
 #ifndef __MY_LOGGER_H__
 #define __MY_LOGGER_H__
 
-#define LOGGER_ID 1
-
 #define LOGGER_QUEUE_NAME "/logger\x00"
 #define LOGGER_MSG_SIZE   100
 #define MAIN_NUM_MSGS  	  1000

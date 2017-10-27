@@ -5,7 +5,7 @@
 
 void * mainLogger(void *arg)
 {
-
+	int8_t retval;
 	mqd_t logger_queue;
 
 	logger_queue = mq_open(LOGGER_QUEUE_NAME, O_CREAT | O_RDONLY, 0755, NULL );
@@ -14,9 +14,6 @@ void * mainLogger(void *arg)
 		printf("Failed to initialize logger queue! Exiting...\n");
 		return NULL;
 	}
-
-	int8_t retval;
-
 	printf("Created Logger\n");
 	retval = initLogger();
 	if (retval != 0)
@@ -24,13 +21,12 @@ void * mainLogger(void *arg)
 		printf("Failed to initialize logger\n");
 		return NULL;
 	}
-
 	printf("Destroyed Logger\n");
 	return NULL;
 }
 
 
-int8_t initLogger()
+int8_t initLogger(mqd_t *queue)
 {
 	return 0;
 }

@@ -1,3 +1,4 @@
+#include <mqueue.h>
 #include "light_driver.h"
 #include "temp_driver.h"
 #include "logger.h"
@@ -14,7 +15,8 @@
 #define STATE_SHUTDOWN 2
 
 /* define message_type */
-typedef enum message_type {HEARTBEAT, TEMP, LIGHT} Message_Type;
+typedef enum message_type {HEARTBEAT_REQ, HEARTBEAT_RSP, TEMP_DRIVER, LIGHT_DRIVER, LOGGER} Message_Type;
+typedef enum task_id {MAIN_ID, TEMP_DRIVER_ID, LIGHT_DRIVER_ID, LOGGER_ID} Task_Id;
 
 /* Structure for message Queues */
 typedef struct
@@ -34,11 +36,12 @@ int main(int argc, char **argv);
 int8_t processHeartbeats(void);
 
 /* request other thread to send heartbeat */
-int8_t reqHeartbeat(int8_t id);
+int8_t reqHeartbeat(mqd_t *queue);
 
 /* send heartbeat to the heartbeat queue */
-int8_t sendHeartbeat(int8_t id);
+int8_t sendHeartbeat(mqd_t *queue, Task_Id id);
 
+/* handle the alarm to kick off a round of processHeartbeats */
 void heartbeatAlarm(int sig);
 
 #endif

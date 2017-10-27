@@ -9,18 +9,22 @@
 
 #include "main.h"
 
-
 volatile sig_atomic_t alrm_flag = 0;
+volatile int state;
 
 void heartbeatAlarm(int sig)
 {
 	alrm_flag = 1;
 }
 
+void handleCtrlC(int sig)
+{
+	state = STATE_SHUTDOWN;
+}
 
 int main(int argc, char **argv)
 {
-	int state, ret, counter;
+	int ret, counter;
 	pthread_t temp_thread, light_thread, logger_thread;
 	message_t msg;
 	mqd_t main_queue; 
@@ -33,7 +37,9 @@ int main(int argc, char **argv)
 	msg.length = 0;
 	msg.message = NULL;
 
-
+	/* catch Ctrl-C */
+	signal(SIGINT, handleCtrlC);
+	
 	/* Create queue for main thread */
 	printf("Creating queue \"%s\"\n", MAIN_QUEUE_NAME);
 	main_queue = mq_open(MAIN_QUEUE_NAME, O_CREAT | O_RDWR, 0755, NULL);
@@ -72,9 +78,8 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	/* start main loop */
 	printf("Initialized children, Now moving to main loop\n");
-	
-
 	state = STATE_RUNNING;
 	counter = 0;
 	while (state == STATE_RUNNING)
@@ -84,17 +89,12 @@ int main(int argc, char **argv)
 			alrm_flag = 0;
 			printf("Received alarm %d!\n", counter);
 			counter++;
-			if (counter == 10)
-			{
-				printf("Exiting main loop!\n");
-				state = STATE_SHUTDOWN;
-			}
-
 		}
 		signal(SIGALRM, heartbeatAlarm);
 		alarm(1);
 		sleep(2);
 	}
+	printf("Exiting program\n");
 
 	/* close this instance of the queue */
 	ret = mq_close(main_queue);
@@ -111,7 +111,6 @@ int main(int argc, char **argv)
 		printf("Failed to unlink queue\n");
 		return 1;
 	}
-
 
 	/* on close, reap temp_thread */
 	if (pthread_join(temp_thread, NULL) != 0)
@@ -133,31 +132,58 @@ int main(int argc, char **argv)
 		printf("failed to reap logger_thread\n");
 		return 1;
 	}
-
 	return 0;
-
 }
 
 /* ensure all heartbeats are received*/
 int8_t processHeartbeats(void)
 {
-	
 	return 0;
 }
 
 /* request other thread to send heartbeat */
-int8_t reqHeartbeat(int8_t id)
+int8_t reqHeartbeat(mqd_t *queue)
 {
+	int retval;
+	message_t msg;
+
 	/* craft heartbeat request */
+	msg.id = HEARTBEAT_REQ;
+	msg.timestamp = time(NULL);
+	msg.length = 0;
+	msg.message = NULL;
 
-
+	retval = mq_send(*queue, (const char *) &msg, sizeof(message_t), 0);
+	if (retval != 0)
+	{
+		printf("Failed to send with retval %d\n", retval);
+		return 1;
+	}
 	return 0;
 }
 
 /* send heartbeat to the heartbeat queue */
-int8_t sendHeartbeat(int8_t id)
+int8_t sendHeartbeat(mqd_t *queue, Task_Id id)
 {
-	printf("Would have sent heartbeat from %d\n", id);
+	int retval;
+	message_t msg;
+	
+	uint8_t *heartbeat_message;
+	heartbeat_message = (uint8_t *) malloc(sizeof(uint8_t *));
+	*heartbeat_message = id;
+
+	/* craft heartbeat request */
+	msg.id = HEARTBEAT_RSP;
+	msg.timestamp = time(NULL);
+	msg.length = sizeof(uint8_t *);
+	msg.message = heartbeat_message;
+
+	retval = mq_send(*queue, (const char *) &msg, sizeof(message_t), 0);
+	if (retval != 0)
+	{
+		printf("Failed to send with retval %d\n", retval);
+		return 1;
+	}
 	return 0;
 }
 

@@ -4,17 +4,31 @@
 
 void * mainLightDriver(void *arg)
 {
+	mqd_t main_queue;
+	
+	/* Create queue for main thread */
+	printf("Creating queue \"%s\"\n", MAIN_QUEUE_NAME);
+	main_queue = mq_open(MAIN_QUEUE_NAME, O_CREAT | O_RDONLY, 0755, NULL);
+	if (main_queue == (mqd_t) -1)
+	{
+		printf("Failed to initialize queue! Exiting...\n");
+		return (char*)1;
+	}
+
 	printf("Initializing LightDriver\n");
-	initLightDriver();
+	initLightDriver(&main_queue);
 	printf("Destroyed LightDriver\n");
 	return NULL;
 }
 
 /* Function to configure the light sensor */
-int8_t initLightDriver(void)
+int8_t initLightDriver(mqd_t *main_queue)
 {
+
+
+
 	printf("Setup LightDriver\n");
-	sendHeartbeatLight();
+	sendHeartbeatLight(main_queue);
 	return 0;
 }
 
