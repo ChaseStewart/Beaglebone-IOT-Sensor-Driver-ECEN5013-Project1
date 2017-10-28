@@ -10,8 +10,11 @@
 /* Main function for the temperature driver*/
 void *mainTempDriver(void *);
 
+/* Function to configure the queues */
+int8_t initTempQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *temp_queue);
+
 /* Function to configure the temp sensor */
-int8_t initTempDriver(mqd_t *main_queue);
+int8_t initTempDriver(void);
 
 /* Function to read from the temp register */
 int8_t readTempRegisters(uint8_t regAddr, uint8_t *retval);

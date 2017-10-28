@@ -10,8 +10,11 @@
 /* Main function for the light driver */
 void *mainLightDriver(void *);
 
+/* Function to configure the queues */
+int8_t initLightQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queue);
+
 /* Function to configure the light sensor */
-int8_t initLightDriver(mqd_t *main_queue);
+int8_t initLightDriver(void);
 
 /* Function to read from the light register */
 int8_t readLightRegisters(uint8_t regAddr, uint8_t *retval);
