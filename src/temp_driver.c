@@ -12,6 +12,13 @@ void *mainTempDriver(void *arg)
 	
 	printf("Initializing Temp Driver\n");
 	initTempQueues(&main_queue, &logger_queue, &temp_queue);
+
+	while(temp_state ==STATE_RUNNING)
+	{
+		pthread_cond_wait(&temp_cv, &temp_mutex);
+		printf("Temp Driver Awake!\n");
+	}
+
 	printf("Destroyed Temp Driver\n");
 
 	return NULL;

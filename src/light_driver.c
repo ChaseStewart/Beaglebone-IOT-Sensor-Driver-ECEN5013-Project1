@@ -11,6 +11,12 @@ void * mainLightDriver(void *arg)
 	printf("Initializing LightDriver\n");
 	initLightDriver();
 	printf("Setup LightDriver\n");
+
+	while(light_state == STATE_RUNNING)
+	{
+		pthread_cond_wait(&light_cv, &light_mutex);
+		printf("Light Driver Awake!\n");
+	}
 	
 	printf("Destroyed LightDriver\n");
 	return NULL;

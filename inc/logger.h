@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <mqueue.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include "common.h"
