@@ -1,29 +1,24 @@
+#include <time.h>
+#include <errno.h>
+#include <stdio.h>
+#include <mqueue.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
+#include "common.h"
 
 #ifndef __MY_LOGGER_H__
 #define __MY_LOGGER_H__
 
+#define LOGGER_QUEUE_NAME "/logger\x00"
+#define LOGGER_MSG_SIZE   100
+#define MAIN_NUM_MSGS  	  1000
 
-typedef enum message_type {HEARTBEAT, TEMP, LIGHT} Message_Type;
-
-#define LOGGER_ID 1
-
-/*Structure for message Queues*/
-typedef struct
-{
-	Message_Type id;	/*Log ID - will be an enum*/
-	uint32_t timeStamp;	/*Timestamp*/
-	size_t length;		/*Size of the message*/
-	uint8_t* message;	/*Message Payload*/
-}message_t;
-
-
-
+/* main program for logger */
 void *mainLogger(void *);
 
 /* set up the logger to run*/
-int8_t initLogger(void);
+int8_t initLoggerQueues(mqd_t *main_queue, mqd_t *logger_queue);
 
 /*Function to print the logger structure onto the log file*/
 void logStruct(message_t logs);
@@ -33,6 +28,9 @@ void logInt(int32_t data);
 
 /*Function to log strings*/
 void logString(uint8_t* string, size_t length);
+
+int8_t logMessage(message_t *in_message);
+
 
 /*Send heartbeat to main*/
 #define sendHeartbeatLogger() sendHeartbeat(LOGGER_ID)

@@ -1,14 +1,17 @@
 #include <stdint.h>
+#include <mqueue.h>
 
 #ifndef __MY_LIGHT_DRIVER_H__
 #define __MY_LIGHT_DRIVER_H__
 
 
 #define LIGHT_SLAVE_ADDR 0x00 // TODO FIXME
-#define LIGHT_ID 3
 
 /* Main function for the light driver */
 void *mainLightDriver(void *);
+
+/* Function to configure the queues */
+int8_t initLightQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queue);
 
 /* Function to configure the light sensor */
 int8_t initLightDriver(void);
@@ -23,6 +26,6 @@ int8_t readNLightRegisters(uint8_t regAddr, uint8_t *retval, uint8_t length);
 int8_t writeLightRegisters(uint8_t regAddr, uint8_t data);
 
 /*Send heartbeat to main*/
-#define sendHeartbeatLight() sendHeartbeat(LIGHT_ID)
+#define sendHeartbeatLight(x) sendHeartbeat(x, LIGHT_DRIVER_ID)
 
 #endif

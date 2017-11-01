@@ -1,10 +1,10 @@
 CC = gcc
 
-CFLAGS = -g -std=c99 -Werror -Wall
+CFLAGS = -g -std=c99 #-Werror -Wall
 
 INCS = -I./inc
 
-LIBS = -pthread
+LIBS = -pthread -lrt
 
 SRCFILES =  src/main.c
 SRCFILES += src/light_driver.c
