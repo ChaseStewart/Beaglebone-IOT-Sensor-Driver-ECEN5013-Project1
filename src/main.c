@@ -160,18 +160,6 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	
-	/* Test message send to main thread */
-	msg.id = 0;
-	msg.timestamp = time(NULL);
-	msg.length = 0;
-	msg.source = MAIN_ID;
-	msg.message = NULL;
-	retval = mq_send(logger_queue, (const char *) &msg, sizeof(message_t), 0);
-	if (retval == -1)
-	{
-		printf("Failed to send to queue! Exiting...\n");
-		//return 1;
-	}
 
 	/* prepare main loop */
 	printf("Initialized children, Now moving to main loop\n");
@@ -184,6 +172,20 @@ int main(int argc, char **argv)
 	signal(SIGALRM, heartbeatAlarm);
 	alarm(1);
 
+	/* Test message send to main thread */
+	msg.id = 0;
+	msg.timestamp = time(NULL);
+	msg.length = 0;
+	msg.source = MAIN_ID;
+	msg.message = NULL;
+	retval = mq_send(logger_queue, (const char *) &msg, sizeof(message_t), 0);
+	if (retval == -1)
+	{
+		printf("Failed to send to queue! Exiting...\n");
+		return 1;
+	}
+	printf("Sent message\n");
+
 	/* main loop */
 	while (main_state == STATE_RUNNING)
 	{
@@ -191,6 +193,7 @@ int main(int argc, char **argv)
 		{
 			alrm_flag = 0;
 			printf("Received alarm %d!\n", counter);
+			sendHeartbeat(main_queue, MAIN_ID);
 			counter++;
 		}
 		sleep(2);
@@ -292,11 +295,10 @@ int main(int argc, char **argv)
 	pthread_mutex_destroy(&logger_mutex);
 	pthread_mutex_destroy(&temp_mutex);
 	pthread_mutex_destroy(&light_mutex);
-
 	return 0;
 }
 
-/* ensure all heartbeats are received*/
+/* ensure all heartbeats are received */
 int8_t processHeartbeats(void)
 {
 	for (int idx = 0; idx< NUM_TASKS; idx++)
@@ -319,12 +321,23 @@ int8_t processHeartbeats(void)
 
 int8_t initMainQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queue, mqd_t *temp_queue)
 {
+	struct sigevent my_sigevent;
+
 	/* Create queue for main thread */
 	printf("Creating queue \"%s\"\n", MAIN_QUEUE_NAME);
 	(*main_queue) = mq_open(MAIN_QUEUE_NAME, O_CREAT | O_RDONLY, 0755, NULL);
 	if ((*main_queue) == (mqd_t) -1)
 	{
 		printf("Failed to initialize queue! Exiting...\n");
+		return 1;
+	}
+
+	/* register to receive logger signals */
+	my_sigevent.sigev_notify = SIGEV_SIGNAL;
+	my_sigevent.sigev_signo  = HEARTBEAT_SIGNO;
+	if (mq_notify((*main_queue), &my_sigevent) == -1 )
+	{
+		printf("Failed to notify!\n");
 		return 1;
 	}
 	
@@ -362,20 +375,19 @@ int8_t initMainQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queue
 int8_t reqHeartbeat(mqd_t *queue)
 {
 	int retval;
-	message_t msg;
+	message_t *msg;
 	mqd_t my_queue;
 
-	my_queue = (*queue);
-
 	/* craft heartbeat request */
-	msg.id = HEARTBEAT_REQ;
-	msg.timestamp = time(NULL);
-	msg.length = 0;
-	msg.source = MAIN_ID; 
-	msg.message = NULL;
+	msg = (message_t *) malloc(sizeof(message_t));
+	msg->id = HEARTBEAT_REQ;
+	msg->timestamp = time(NULL);
+	msg->length = 0;
+	msg->source = MAIN_ID; 
+	msg->message = NULL;
 
 	/* Attempt to send to the queue	*/
-	retval = mq_send(my_queue, (const char *) &msg, sizeof(message_t), 0);
+	retval = mq_send((*queue), (const char *) msg, sizeof(message_t), 0);
 	if (retval == -1)
 	{
 		printf("Failed to send with retval %d\n", retval);
@@ -389,22 +401,24 @@ int8_t reqHeartbeat(mqd_t *queue)
 int8_t sendHeartbeat(mqd_t queue, Task_Id id)
 {
 	int retval;
-	message_t msg;
-	
-	/* craft heartbeat request */
-	msg.id = HEARTBEAT_RSP;
-	msg.timestamp = time(NULL);
-	msg.length    = 0;
-	msg.source    = id;
-	msg.message   = NULL;
+	message_t *msg;
 
-	/* */
-	retval = mq_send(queue, (const char *) &msg, sizeof(message_t), 0);
+	/* craft heartbeat request */
+	msg = (message_t *) malloc(sizeof(message_t));
+	msg->id        = HEARTBEAT_RSP;
+	msg->timestamp = time(NULL);
+	msg->length    = 0;
+	msg->source    = id;
+	msg->message   = NULL;
+
+	/* attempt to send */
+	retval = mq_send(queue, (const char *) msg, sizeof(msg), 0);
 	if (retval != 0)
 	{
-		printf("Failed to send with retval %d\n", retval);
+		printf("Failed to send with retval %d and errno %d \n", retval, errno);
 		return 1;
 	}
+	printf("Send succeeded with retval %d\n", retval);
 	return 0;
 }
 

@@ -6,6 +6,7 @@
 void *mainTempDriver(void *arg)
 {
 	mqd_t main_queue, logger_queue, temp_queue;
+	
 	/* Create queue for main thread */
 	printf("Initializing Temp Queues\n");
 	initTempQueues(&main_queue, &logger_queue, &temp_queue);

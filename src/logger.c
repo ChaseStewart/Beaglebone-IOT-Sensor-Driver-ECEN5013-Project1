@@ -20,6 +20,7 @@ void * mainLogger(void *arg)
 		printf("Failed to init logger queues\n");
 	}
 
+	/* register to receive logger signals */
 	my_sigevent.sigev_notify = SIGEV_SIGNAL;
 	my_sigevent.sigev_signo  = LOGGER_SIGNO;
 	if (mq_notify(logger_queue, &my_sigevent) == -1 )
@@ -38,6 +39,7 @@ void * mainLogger(void *arg)
 		fputs("Opened file!\n", out_file);
 	}
 
+	/* this is the main loop for the program */
 	while(logger_state == STATE_RUNNING)
 	{
 		pthread_cond_wait(&logger_cv, &logger_mutex);
@@ -48,9 +50,6 @@ void * mainLogger(void *arg)
 	printf("Destroyed Logger\n");
 	return NULL;
 }
-
-
-
 
 int8_t initLoggerQueues(mqd_t *main_queue, mqd_t *logger_queue)
 {
