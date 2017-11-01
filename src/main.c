@@ -220,7 +220,6 @@ int main(int argc, char **argv)
 		printf("failed to reap light_thread\n");
 		return 1;
 	}
-	
 	printf("All Threads reaped!\n");
 
 	/* close this instance of the queue */
@@ -305,7 +304,7 @@ int8_t processHeartbeats(void)
 	{
 		if (hbt_rsp[idx] != 0)
 		{
-			/* TODO log error*/
+			/* TODO log error */
 			printf("Error with task %d", idx);
 			main_state = STATE_SHUTDOWN;
 		}
@@ -325,7 +324,7 @@ int8_t initMainQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queue
 
 	/* Create queue for main thread */
 	printf("Creating queue \"%s\"\n", MAIN_QUEUE_NAME);
-	(*main_queue) = mq_open(MAIN_QUEUE_NAME, O_CREAT | O_RDONLY, 0755, NULL);
+	(*main_queue) = mq_open(MAIN_QUEUE_NAME, O_CREAT | O_RDWR, 0755, NULL);
 	if ((*main_queue) == (mqd_t) -1)
 	{
 		printf("Failed to initialize queue! Exiting...\n");
@@ -370,7 +369,6 @@ int8_t initMainQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queue
 	return 0;	
 }
 
-
 /* request other thread to send heartbeat */
 int8_t reqHeartbeat(mqd_t *queue)
 {
@@ -413,7 +411,7 @@ int8_t sendHeartbeat(mqd_t queue, Task_Id id)
 
 	/* attempt to send */
 	retval = mq_send(queue, (const char *) msg, sizeof(msg), 0);
-	if (retval != 0)
+	if (retval <= 0)
 	{
 		printf("Failed to send with retval %d and errno %d \n", retval, errno);
 		return 1;

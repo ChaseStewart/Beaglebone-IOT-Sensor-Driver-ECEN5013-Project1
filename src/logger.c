@@ -7,6 +7,8 @@ void * mainLogger(void *arg)
 {
 	int8_t retval;
 	char *logname;
+	char in_buffer[4096];
+	message_t *in_message;
 	mqd_t main_queue, logger_queue;
 	logger_args *my_log_args;	
 	struct sigevent my_sigevent;
@@ -43,9 +45,19 @@ void * mainLogger(void *arg)
 	while(logger_state == STATE_RUNNING)
 	{
 		pthread_cond_wait(&logger_cv, &logger_mutex);
+		in_message = (message_t *) malloc(sizeof(message_t));
 		printf("Logger awake!\n");
+		while(errno != EAGAIN){
+			retval = mq_receive(logger_queue, in_buffer, SIZE_MAX, NULL);
+			if (retval <= 0 && errno != EAGAIN)
+			{
+				printf("Failed to notify with retval %d and errno %d\n", retval, errno );
+			}
+			in_message = (message_t *)in_buffer;
+			logMessage(in_message);
+		}
+		printf("Escaped with errno %d\n", errno);
 	}
-
 	fclose(out_file);	
 	printf("Destroyed Logger\n");
 	return NULL;
@@ -55,7 +67,7 @@ int8_t initLoggerQueues(mqd_t *main_queue, mqd_t *logger_queue)
 {
 	/* Create main queue*/
 	printf("Creating queue \"%s\"\n", MAIN_QUEUE_NAME);
-	(*main_queue) = mq_open(MAIN_QUEUE_NAME, O_CREAT | O_WRONLY, 0755, NULL );
+	(*main_queue) = mq_open(MAIN_QUEUE_NAME, O_CREAT | O_WRONLY , 0755, NULL );
 	if ((*main_queue) == (mqd_t) -1 )
 	{
 		return 1;
@@ -63,7 +75,7 @@ int8_t initLoggerQueues(mqd_t *main_queue, mqd_t *logger_queue)
 
 	/* Create main queue*/
 	printf("Creating queue \"%s\"\n", LOGGER_QUEUE_NAME);
-	(*logger_queue) = mq_open(LOGGER_QUEUE_NAME, O_CREAT | O_RDONLY, 0755, NULL );
+	(*logger_queue) = mq_open(LOGGER_QUEUE_NAME, O_CREAT | O_RDONLY | O_NONBLOCK , 0755, NULL );
 	if ((*logger_queue) == (mqd_t) -1 )
 	{
 		return 1;

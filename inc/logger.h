@@ -1,7 +1,10 @@
+#include <time.h>
+#include <errno.h>
 #include <stdio.h>
 #include <mqueue.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include "common.h"
 
 #ifndef __MY_LOGGER_H__
@@ -25,6 +28,9 @@ void logInt(int32_t data);
 
 /*Function to log strings*/
 void logString(uint8_t* string, size_t length);
+
+int8_t logMessage(message_t *in_message);
+
 
 /*Send heartbeat to main*/
 #define sendHeartbeatLogger() sendHeartbeat(LOGGER_ID)
