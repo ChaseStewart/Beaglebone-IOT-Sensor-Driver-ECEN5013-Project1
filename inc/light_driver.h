@@ -1,8 +1,32 @@
 #include <stdint.h>
 #include <mqueue.h>
 
+
 #ifndef __MY_LIGHT_DRIVER_H__
 #define __MY_LIGHT_DRIVER_H__
+
+#define I2C_FILE 				"/dev/i2c-2"	/*I2C device location*/
+#define SLAVE_ADDRESS 			0x39			/*Slave Address*/
+
+/*Address of registers*/
+#define LIGHT_CTRL_REG			0x00
+#define LIGHT_TIMING_REG		0x01
+#define LIGHT_THR_LOW_LOW_REG	0x02
+#define LIGHT_THR_LOW_HIGH_REG	0x03
+#define LIGHT_THR_HIGH_LOW_REG	0x04
+#define LIGHT_THR_HIGH_HIGH_REG	0x05
+#define LIGHT_INT_REG			0x06
+#define LIGHT_ID_REG			0x0A
+#define LIGHT_DATA0LOW_REG		0x0C
+#define LIGHT_DATA0HIGH_REG		0x0D
+#define LIGHT_DATA1LOW_REG		0x0E
+#define LIGHT_DATA1HIGH_REG		0x0F
+
+/*Light Sensor Commands*/
+#define BIT_WORD_CMD 			0x20
+#define BIT_CMD_SELECT_REG		0x80
+#define BIT_POWER_UP			0x03
+#define BIT_POWER_DOWN			0x00
 
 
 #define LIGHT_SLAVE_ADDR 0x00 // TODO FIXME

@@ -4,6 +4,16 @@
 #ifndef __MY_TEMP_DRIVER_H__
 #define __MY_TEMP_DRIVER_H__
 
+#define I2C_FILE 				"/dev/i2c-2"	/*I2C device location*/
+#define SLAVE_ADDRESS 			0x48			/*Slave Address*/
+#define TEMP_SENSOR_RESOLUTION 	0.0625			/*ADC Conversion Resolution*/
+#define READ_BIT 				1
+#define WRITE_BIT 				0
+
+#define PTR_ADDRESS_TEMP 	0x00 	/*Temperature REgister*/
+#define PTR_ADDRESS_CONFIG 	0x01	/*Congig Register*/
+#define PTR_ADDRESS_TLOW 	0x02	/*Low Threshold Register*/
+#define PTR_ADDRESS_THIGH 	0x03 	/*High Threshold Register*/
 
 #define TEMP_SLAVE_ADDR 0x00 // TODO FIXME
 
