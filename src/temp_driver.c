@@ -67,8 +67,6 @@ int8_t initTempQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *temp_queue)
 	return 0;
 }
 
-int32_t i2cHandle;	/*File Descriptor for I2C access*/
-
 
 /* Function to configure the temp sensor */
 int8_t initTempDriver(void)
@@ -94,7 +92,7 @@ int8_t initTempDriver(void)
 int16_t tempConversion(int16_t temp)
 {
 	temp = temp >>4;
-	if(temp & 0x800) /*finding Negative values*/
+	if(temp & 0x800) /*finding Negative values in 12-bit ADC result*/
 	{
 		temp = ~temp;	/*Finding Absolute Value by 2s Complement and multpily by -1*/
 		temp++;

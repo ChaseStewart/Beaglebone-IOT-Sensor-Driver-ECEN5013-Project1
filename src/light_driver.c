@@ -121,6 +121,7 @@ int8_t writeCtrlReg(uint8_t data)
 	status = writeNLightRegisters(buffer,2);	
 	return status;
 }
+
 /* Function to read from the light register */
 int8_t readLightRegisters(uint8_t regAddr, uint8_t *readData)
 {

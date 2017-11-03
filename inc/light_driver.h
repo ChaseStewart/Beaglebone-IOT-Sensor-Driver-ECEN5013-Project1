@@ -33,6 +33,9 @@
 #define BIT_INT_DISABLE			0x00
 #define BIT_INT_ENABLE			0x01
 
+/*Send heartbeat to main*/
+#define sendHeartbeatLight(x) sendHeartbeat(x, LIGHT_DRIVER_ID)
+
 typedef enum
 {
 	INT_TIME_14ms = 0,
@@ -49,16 +52,55 @@ int8_t initLightQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queu
 /* Function to configure the light sensor */
 int8_t initLightDriver(void);
 
+/* Function to write into the Light Sensor Registers */
+int8_t writeLightRegisters(uint8_t data);
+
+/* Function to write N-bytes into the Light Sensor Registers */
+int8_t writeNLightRegisters(uint8_t* data, size_t length);
+
+/* Function to write CTRL Register*/
+int8_t writeCtrlReg(uint8_t data);
+
 /* Function to read from the light register */
-int8_t readLightRegisters(uint8_t regAddr, uint8_t *retval);
+int8_t readLightRegisters(uint8_t regAddr, uint8_t *readData);
 
 /* Function to read N-bytes from the light register, put result in retval, return status */
-int8_t readNLightRegisters(uint8_t regAddr, uint8_t *retval, uint8_t length);
+int8_t readNLightRegisters(uint8_t regAddr, uint8_t *readData, uint8_t length);
 
-/* Function to write into the Light Sensor Registers */
-int8_t writeLightRegisters(uint8_t regAddr, uint8_t data);
+/* Function to read from the ID register */
+int8_t readIDRegister(uint8_t* id);
 
-/*Send heartbeat to main*/
-#define sendHeartbeatLight(x) sendHeartbeat(x, LIGHT_DRIVER_ID)
+/* Function to read from the CTRL register */
+int8_t readCtrlReg(uint8_t* ctrl);
+
+/* Function to read from the ADC0 register */
+int8_t readADC0(uint16_t* lux);
+
+/* Function to read from the ADC1 register */
+int8_t readADC1(uint16_t* lux);
+
+/*Function to know the Sensor Lux Value*/
+int8_t lightSensorLux(float* intensity);
+
+/*Function to find if the light is dark*/
+bool isDark();
+
+/*Function to find if the light is dark*/
+bool isBright();
+
+/* Function to configure integration time */
+int8_t configTiming(INTTIME_T data);
+
+/* Function to read from the Timing register */
+int8_t readTimingRegister(uint8_t* data);
+
+/*Function to disable Interrupt Register*/
+int8_t lightDisableInt();
+
+/*Function to enable Interrupt Register*/
+int8_t lightEnableInt();
+
+/* Function to read from the Timing register */
+int8_t readInterruptRegister(uint8_t* data);
 
 #endif
