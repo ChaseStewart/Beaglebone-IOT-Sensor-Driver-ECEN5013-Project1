@@ -3,6 +3,7 @@
 #include "common.h"
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -79,7 +80,7 @@ int8_t initLightDriver(void)
 		exit(1);
 	}
 
-	if(ioctl(i2cHandle,I2C_SLAVE, SLAVE_ADDRESS) < 0)
+	if(ioctl(i2cHandle,I2C_SLAVE, LIGHT_SLAVE_ADDRESS) < 0)
 	{
 		printf("Failed to talk to Slave and Acquire bus access\n");
 		exit(1);
@@ -100,7 +101,7 @@ int8_t writeLightRegisters(uint8_t data)
 }
 
 /* Function to write N-bytes into the Light Sensor Registers */
-int8_t writeNTempRegisters(uint8_t* data, size_t length)
+int8_t writeNLightRegisters(uint8_t* data, size_t length)
 {
 	if(write(i2cHandle, data, length) != length)	/*Writes N-bytes into file*/
 	{
@@ -117,7 +118,7 @@ int8_t writeCtrlReg(uint8_t data)
 	int8_t buffer[2];
 	buffer[0] = BIT_CMD_SELECT_REG | LIGHT_CTRL_REG;	/*Register Address*/
 	buffer[1] = data;			/*Byte1*/
-	status = writeNTempRegisters(buffer,2);	
+	status = writeNLightRegisters(buffer,2);	
 	return status;
 }
 /* Function to read from the light register */
@@ -186,6 +187,125 @@ int8_t readADC1(uint16_t* lux)
 /*Function to know the Sensor Lux Value*/
 int8_t lightSensorLux(float* intensity)
 {
-	
+	uint16_t iCH0 = 0;
+	uint16_t iCH1 = 0;
+	float CH0 = 0;
+	float CH1 = 0;
+	float selectFormula = 0;
+	int8_t status;
+	status = readADC0(&iCH0);
+	status = readADC1(&iCH1);
+	CH0 = iCH0;
+	CH1 = iCH1;
+	selectFormula = CH1/CH0;	/*Lux calculation depends on this ratio*/
+	/*Formula Selection*/
+	if(selectFormula <= 0.5)
+	{
+		*intensity =  (0.0304*CH0)-(0.062*CH0*((CH1/CH0)*1.4));
+	}
+	else if(selectFormula <= 0.61)
+	{
+		*intensity = (0.0224*CH0)-(0.031*CH1);
+	}
+	else if(selectFormula <= 0.8)
+	{
+		*intensity =  (0.0128*CH0)-(0.0153*CH1);
+	}
+	else if(selectFormula <= 1.3)
+	{
+		*intensity =  (0.00146*CH0)-(0.00112*CH1);
+	}
+	else
+	{
+		*intensity = 0;
+	}
+	return status;
 }
 
+/*Function to find if the light is dark*/
+bool isDark()
+{
+	float intensity;
+	if(lightSensorLux(&intensity))
+	{
+		return false;
+	}
+	if(intensity < 50)	/*Lux value of <50 is assumed night*/
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+
+/*Function to find if the light is dark*/
+bool isBright()
+{
+	float intensity;
+	if(lightSensorLux(&intensity))
+	{
+		return false;
+	}
+	if(intensity > 50)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+/* Function to configure integration time */
+int8_t configTiming(INTTIME_T data)
+{
+	int8_t status;
+	int8_t buffer[2];
+	if(data >2)		//If invalid value
+		return -1;
+	buffer[0] = BIT_CMD_SELECT_REG | LIGHT_TIMING_REG;	/*Register Address*/
+	buffer[1] = data;			/*The Enum match the required value to use into the register*/
+	status = writeNLightRegisters(buffer,2);	
+	return status;
+}
+
+/* Function to read from the Timing register */
+int8_t readTimingRegister(uint8_t* data)
+{
+	int8_t status;
+	status = readLightRegisters(LIGHT_TIMING_REG, data);
+	return status;
+}
+
+/*Function to disable Interrupt Register*/
+int8_t lightDisableInt()
+{
+	int8_t status;
+	int8_t buffer[2];
+	buffer[0] = BIT_CMD_SELECT_REG | LIGHT_INT_REG;	/*Register Address*/
+	buffer[1] = BIT_INT_DISABLE;					
+	status = writeNLightRegisters(buffer,2);		
+	return status;
+}
+
+/*Function to enable Interrupt Register*/
+int8_t lightEnableInt()
+{
+	int8_t status;
+	int8_t buffer[2];
+	buffer[0] = BIT_CMD_SELECT_REG | LIGHT_INT_REG;	/*Register Address*/
+	buffer[1] = BIT_INT_ENABLE;					
+	status = writeNLightRegisters(buffer,2);		
+	return status;
+}
+
+/* Function to read from the Timing register */
+int8_t readInterruptRegister(uint8_t* data)
+{
+	int8_t status;
+	status = readLightRegisters(LIGHT_INT_REG, data);
+	return status;
+}

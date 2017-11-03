@@ -3,6 +3,7 @@
 #include "common.h"
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -66,6 +67,9 @@ int8_t initTempQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *temp_queue)
 	return 0;
 }
 
+int32_t i2cHandle;	/*File Descriptor for I2C access*/
+
+
 /* Function to configure the temp sensor */
 int8_t initTempDriver(void)
 {
@@ -78,7 +82,7 @@ int8_t initTempDriver(void)
 		exit(1);
 	}
 
-	if(ioctl(i2cHandle,I2C_SLAVE, SLAVE_ADDRESS) < 0)
+	if(ioctl(i2cHandle,I2C_SLAVE, TEMP_SLAVE_ADDRESS) < 0)
 	{
 		printf("Failed to talk to Slave and Acquire bus access\n");
 		exit(1);
@@ -90,7 +94,7 @@ int8_t initTempDriver(void)
 int16_t tempConversion(int16_t temp)
 {
 	temp = temp >>4;
-	if(temp & 0x400) /*finding Negative values*/
+	if(temp & 0x800) /*finding Negative values*/
 	{
 		temp = ~temp;	/*Finding Absolute Value by 2s Complement and multpily by -1*/
 		temp++;
@@ -205,7 +209,7 @@ int8_t readTemperature(int16_t* temp)
 {
 	int8_t status;
 	status = readNTempRegisters(PTR_ADDRESS_TEMP,(uint8_t*)temp,2);
-	*temp = tempConversion(temp);
+	*temp = tempConversion(*temp);
 	return status;
 }
 
@@ -233,4 +237,45 @@ int8_t readTempHigh(int16_t* temp)
 	return status;
 }
 
+/*Function to enable or disable shutdown, False-Disable, True - Enable*/
+int8_t enableShutdown(bool shutdownCmd)
+{
+	int16_t config = 0;
+	int8_t status = 0;
+	readConfig(&config);
+	if(shutdownCmd)
+		config |= BIT_SHUTDOWN_16BIT;
+	else
+		config &= ~BIT_SHUTDOWN_16BIT;
+	status = writeConfig(config);
+	return status;
+}
+
+/*Function to set the conversion rate*/
+int8_t configConvRate(uint16_t convRate)
+{
+	int16_t config = 0;
+	int8_t status = 0;
+	readConfig(&config);
+	config &= ~BIT_CONV_RATE_8HZ;	/*Clear Conv Bits*/
+	config |= convRate;
+	status = writeConfig(config);
+	return status;
+}
+
+/*Function to give Temperature in requested values*/
+int8_t currentTemperature(int16_t* temp, TEMPUNIT_t units)
+{
+	int8_t status = 0;
+	status = readTemperature(temp);
+	if(UNIT_FAHRENHEIT == units)
+	{
+		*temp = (((float)*temp)*1.8 )+32;
+	}
+	else if(UNIT_KELVIN == units)
+	{
+		*temp = *temp + 273;
+	}
+	return status;
+}
 

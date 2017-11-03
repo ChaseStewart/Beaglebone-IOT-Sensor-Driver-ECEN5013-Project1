@@ -6,7 +6,7 @@
 #define __MY_LIGHT_DRIVER_H__
 
 #define I2C_FILE 				"/dev/i2c-2"	/*I2C device location*/
-#define SLAVE_ADDRESS 			0x39			/*Slave Address*/
+#define LIGHT_SLAVE_ADDRESS 	0x39			/*Slave Address*/
 
 /*Address of registers*/
 #define LIGHT_CTRL_REG			0x00
@@ -27,9 +27,18 @@
 #define BIT_CMD_SELECT_REG		0x80
 #define BIT_POWER_UP			0x03
 #define BIT_POWER_DOWN			0x00
+#define BIT_INT_TIME_14ms		0x00
+#define BIT_INT_TIME_101ms		0x01
+#define BIT_INT_TIME_402ms		0x10
+#define BIT_INT_DISABLE			0x00
+#define BIT_INT_ENABLE			0x01
 
-
-#define LIGHT_SLAVE_ADDR 0x00 // TODO FIXME
+typedef enum
+{
+	INT_TIME_14ms = 0,
+	INT_TIME_101ms,
+	INT_TIME_402ms
+}INTTIME_T;
 
 /* Main function for the light driver */
 void *mainLightDriver(void *);

@@ -5,7 +5,7 @@
 #define __MY_TEMP_DRIVER_H__
 
 #define I2C_FILE 				"/dev/i2c-2"	/*I2C device location*/
-#define SLAVE_ADDRESS 			0x48			/*Slave Address*/
+#define TEMP_SLAVE_ADDRESS 		0x48			/*Slave Address*/
 #define TEMP_SENSOR_RESOLUTION 	0.0625			/*ADC Conversion Resolution*/
 #define READ_BIT 				1
 #define WRITE_BIT 				0
@@ -15,7 +15,19 @@
 #define PTR_ADDRESS_TLOW 	0x02	/*Low Threshold Register*/
 #define PTR_ADDRESS_THIGH 	0x03 	/*High Threshold Register*/
 
-#define TEMP_SLAVE_ADDR 0x00 // TODO FIXME
+#define BIT_SHUTDOWN_16BIT	0x0100	/*Shutdown Bits set <Byte1Byte2> format*/
+#define BIT_CONV_RATE_0_25HZ	0x00 	/*Conversion Rate*/
+#define BIT_CONV_RATE_1HZ		0x40
+#define BIT_CONV_RATE_4HZ		0x80
+#define BIT_CONV_RATE_8HZ		0xC0
+
+/*Enum for Temp Unit Conversions*/
+typedef enum
+{
+	UNIT_CELCIUS = 0,
+	UNIT_FAHRENHEIT,
+	UNIT_KELVIN
+}TEMPUNIT_t;
 
 /* Main function for the temperature driver*/
 void *mainTempDriver(void *);
