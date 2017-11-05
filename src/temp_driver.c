@@ -1,5 +1,5 @@
-#include "temp_driver.h"
 #include "common.h"
+#include "temp_driver.h"
 
 #define FAKE_SENSORS 1 /* for chase who doesn't have the sensors */
 
@@ -8,7 +8,8 @@ int32_t i2cHandle;	/*File Descriptor for I2C access*/
 
 void *mainTempDriver(void *arg)
 {
-	int retval;
+	sigset_t set;
+	int retval, sig;
 	mqd_t main_queue, logger_queue, temp_queue;
 	char in_buffer[4096];
 	message_t *in_message;
@@ -26,14 +27,29 @@ void *mainTempDriver(void *arg)
 		return NULL;
 	}
 	
+	retval = blockAllSigs();
+	if (retval != 0)
+	{
+		printf("Failed to set sigmask.\n");
+		return (void *) 1;
+	}
+	
 	printf("Initializing Temp Driver\n");
 	initTempDriver();
 
+	sigemptyset(&set);
+	sigaddset(&set, TEMP_DRIVER_SIGNO);
+
 	while(temp_state > STATE_SHUTDOWN)
 	{
-		pthread_cond_wait(&temp_cv, &temp_mutex);
-		printf("temp waking up\n");
+		sigwait(&set, &sig);
+		if (mq_notify(temp_queue, &my_sigevent) == -1 )
+		{
+			return NULL;
+		}
+
 		in_message = (message_t *) malloc(sizeof(message_t));
+		errno = 0;
 		while(errno != EAGAIN){
 			retval = mq_receive(temp_queue, in_buffer, SIZE_MAX, NULL);
 			if (retval <= 0 && errno != EAGAIN)
@@ -70,7 +86,6 @@ void *mainTempDriver(void *arg)
 		{
 			sendHeartbeat(main_queue, TEMP_DRIVER_ID);
 		}
-		printf("Back to sleep\n");
 	}
 
 	printf("Destroyed Temp Driver\n");

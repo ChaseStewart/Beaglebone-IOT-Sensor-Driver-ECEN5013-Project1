@@ -48,14 +48,7 @@ void heartbeatAlarm(int sig);
 /* catch various signals */
 void handleCtrlC(int sig);
 
-void handleSigLogger(int sig);
-
-void handleSigHbt(int sig);
-
-void handleSigLight(int sig);
-
-void handleSigTemp(int sig);
-
+/* send message to logger with priority prio */
 int8_t logFromMain(mqd_t queue, int prio, char *message);
 
 #endif

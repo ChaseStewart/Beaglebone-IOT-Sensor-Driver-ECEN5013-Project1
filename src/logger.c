@@ -1,11 +1,13 @@
-#include "logger.h"
 #include "common.h"
+#include "logger.h"
 
 FILE *out_file;
 
 void * mainLogger(void *arg)
 {
-	int8_t retval;
+	sigset_t set;
+	int retval, sig;
+	struct sigevent my_sigevent;
 	char *logname;
 	char in_buffer[4096];
 	message_t *in_message;
@@ -18,18 +20,43 @@ void * mainLogger(void *arg)
 		printf("Failed to init logger queues\n");
 	}
 	
+	/* register to receive logger signals */
+	my_sigevent.sigev_notify = SIGEV_SIGNAL;
+	my_sigevent.sigev_signo  = LOGGER_SIGNO;
+	if (mq_notify(logger_queue, &my_sigevent) == -1 )
+	{
+		printf("Failed to notify!\n");
+		return NULL;
+	}
+	printf("notified logger\n");
+	
+	retval = blockAllSigs();
+	if (retval != 0)
+	{
+		printf("Failed to set sigmask.\n");
+		return (void *) 1;
+	}
+	
 	out_file = initLogger(logger_queue, arg);
 	if(out_file)
 	{
-		logFromLogger(logger_queue, LOG_INFO, "Opened file!\n");
+		printf("Log file opened\n");
 	}
 
+	sigemptyset(&set);
+	sigaddset(&set, LOGGER_SIGNO);
 	/* this is the main loop for the program */
 	while(logger_state > STATE_SHUTDOWN)
 	{
-		pthread_cond_wait(&logger_cv, &logger_mutex);
-		printf("logger waking up\n");
+		sigwait(&set, &sig);
+		if (mq_notify(logger_queue, &my_sigevent) == -1 )
+		{
+			printf("Failed to notify!\n");
+			return NULL;
+		}
+		
 		in_message = (message_t *) malloc(sizeof(message_t));
+		errno = 0;
 		while(errno != EAGAIN){
 			retval = mq_receive(logger_queue, in_buffer, SIZE_MAX, NULL);
 			if (retval <= 0 && errno != EAGAIN)
@@ -46,7 +73,6 @@ void * mainLogger(void *arg)
 
 			else if (in_message->id == HEARTBEAT_REQ) 
 			{
-				logFromLogger(logger_queue, LOG_INFO, "Got Heartbeat!\n");
 				sendHeartbeat(main_queue, LOGGER_ID);
 			}
 		}
@@ -150,17 +176,7 @@ int8_t logMessage(message_t *in_message)
 FILE *initLogger(mqd_t queue, void *arg)
 {
 	char *logname;
-	logger_args *my_log_args;	
-	struct sigevent my_sigevent;
-	
-	/* register to receive logger signals */
-	my_sigevent.sigev_notify = SIGEV_SIGNAL;
-	my_sigevent.sigev_signo  = LOGGER_SIGNO;
-	if (mq_notify(queue, &my_sigevent) == -1 )
-	{
-		printf("Failed to notify!\n");
-		return NULL;
-	}
+	logger_args *my_log_args;
 	
 	/* parse logger args */
 	my_log_args = (logger_args *)malloc(sizeof(logger_args));
@@ -186,6 +202,5 @@ int8_t logFromLogger(mqd_t queue, int prio, char *message)
 		printf("Failed to send to queue! Exiting...\n");
 		return 1;
 	}
-
 }
 

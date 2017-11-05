@@ -1,6 +1,10 @@
+#define _POSIX_SOURCE
+#define _POSIX_C_SOURCE (200112L)
+
 #include <errno.h>
 #include <string.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <mqueue.h>
@@ -14,7 +18,7 @@
 
 /* queue vars */
 #define QUEUE_MSG_SIZE          100 
-#define QUEUE_NUM_MSGS          1000
+#define QUEUE_NUM_MSGS          2048
 #define MAIN_QUEUE_NAME         "/heartbeat1\x00"
 #define LOGGER_QUEUE_NAME       "/logger\x00"
 #define TEMP_DRIVER_QUEUE_NAME  "/tempdriver\x00"
@@ -39,17 +43,6 @@
 #define LOG_DEBUG 1
 #define LOG_ERROR 2
 #define LOG_CRITICAL 3
-
-
-/* all mutexes and condition variables */
-extern pthread_cond_t  heartbeat_cv;
-extern pthread_cond_t  logger_cv;
-extern pthread_cond_t  temp_cv;
-extern pthread_cond_t  light_cv;
-extern pthread_mutex_t heartbeat_mutex;
-extern pthread_mutex_t logger_mutex;
-extern pthread_mutex_t temp_mutex;
-extern pthread_mutex_t light_mutex;
 
 /* state vars for each process */
 extern volatile int main_state;
@@ -82,8 +75,13 @@ typedef struct
 	char *filename;
 }logger_args;
 
+
+
 /* send heartbeat to provided queue */
 int8_t sendHeartbeat(mqd_t queue, Task_Id my_id);
+
+/* block signals used for notification/sigwait */
+int8_t blockAllSigs(void);
 
 
 #endif

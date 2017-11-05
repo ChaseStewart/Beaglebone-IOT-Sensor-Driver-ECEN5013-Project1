@@ -1,5 +1,5 @@
-#include "light_driver.h"
 #include "common.h"
+#include "light_driver.h"
 
 #define FAKE_SENSORS 1 /* for chase who doesn't have the sensors */
 
@@ -7,7 +7,8 @@ int32_t i2cHandle;	/*File Descriptor for I2C access*/
 
 void * mainLightDriver(void *arg)
 {
-	int retval;
+	sigset_t set;
+	int retval, sig;
 	mqd_t main_queue, logger_queue, light_queue;
 	char in_buffer[4096];
 	message_t *in_message;
@@ -22,20 +23,35 @@ void * mainLightDriver(void *arg)
 	my_sigevent.sigev_signo  = LIGHT_DRIVER_SIGNO;
 	if (mq_notify(light_queue, &my_sigevent) == -1 )
 	{
-		printf("Failed to light notify!\n");
+		printf("failed to light notify!\n");
+		return NULL;
+	}
+	
+	retval = blockAllSigs();
+	if (retval != 0)
+	{
+		printf("Failed to set sigmask.\n");
 		return NULL;
 	}
 	
 	initLightDriver();
 	printf("Setup LightDriver\n");
 
+	sigemptyset(&set);
+	sigaddset(&set, LIGHT_DRIVER_SIGNO);
+
 	while(light_state > STATE_SHUTDOWN)
 	{
-		pthread_cond_wait(&light_cv, &light_mutex);
-		printf("light waking up\n");
+		sigwait(&set, &sig);
+		if (mq_notify(light_queue, &my_sigevent) == -1 )
+		{
+			printf("failed to light notify!\n");
+			return NULL;
+		}
+
 		in_message = (message_t *) malloc(sizeof(message_t));
+		errno = 0;
 		while(errno != EAGAIN){
-			printf("Got here\n");
 			retval = mq_receive(light_queue, in_buffer, SIZE_MAX, NULL);
 			if (retval <= 0 && errno != EAGAIN)
 			{
@@ -71,7 +87,6 @@ void * mainLightDriver(void *arg)
 		{
 			sendHeartbeat(main_queue, LIGHT_DRIVER_ID);
 		}
-		printf("back to sleep\n");
 	}
 	
 	printf("Destroyed LightDriver\n");
@@ -360,7 +375,7 @@ int8_t readInterruptRegister(uint8_t* data)
 	return status;
 }
 
-/* */
+/* send a message to logger */
 int8_t logFromLight(mqd_t queue, int prio, char *message)
 {
 	int retval;
