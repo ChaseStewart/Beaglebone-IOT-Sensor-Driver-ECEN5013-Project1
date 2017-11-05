@@ -16,8 +16,8 @@ void *mainTempDriver(void *arg)
 	struct sigevent my_sigevent;
 	
 	/* Create queue for main thread */
-	printf("Initializing Temp Queues\n");
 	initTempQueues(&main_queue, &logger_queue, &temp_queue);
+	logFromTemp(logger_queue, LOG_INFO, "Initialized Temp Queues\n");
 	
 	/* register to receive temp_driver signals */
 	my_sigevent.sigev_notify = SIGEV_SIGNAL;
@@ -34,7 +34,7 @@ void *mainTempDriver(void *arg)
 		return (void *) 1;
 	}
 	
-	printf("Initializing Temp Driver\n");
+	logFromTemp(logger_queue, LOG_INFO, "Initialized Temp Driver\n");
 	initTempDriver();
 
 	sigemptyset(&set);
@@ -43,8 +43,6 @@ void *mainTempDriver(void *arg)
 	while(temp_state > STATE_SHUTDOWN)
 	{
 		sigwait(&set, &sig);
-		printf("Temp awake\n");
-
 		if (mq_notify(temp_queue, &my_sigevent) == -1 )
 		{
 			return NULL;
@@ -63,7 +61,7 @@ void *mainTempDriver(void *arg)
 			/* process Temp Driver Req */
 			if (in_message->id == TEMP_DRIVER )
 			{
-				printf("Got Temp Driver Message\n");
+				logFromTemp(logger_queue, LOG_INFO, "Destroyed Temp Driver\n");
 			} 
 
 			else if (in_message->id == HEARTBEAT_REQ) 
@@ -72,7 +70,7 @@ void *mainTempDriver(void *arg)
 			}
 		}
 	}
-	printf("Destroyed Temp Driver\n");
+	logFromTemp(logger_queue, LOG_INFO, "Destroyed Temp Driver\n");
 	return NULL;
 }
 
@@ -80,7 +78,6 @@ void *mainTempDriver(void *arg)
 int8_t initTempQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *temp_queue)
 {
 	/* Create main queue*/
-	printf("Creating queue \"%s\"\n", MAIN_QUEUE_NAME);
 	(*main_queue) = mq_open(MAIN_QUEUE_NAME, O_CREAT | O_WRONLY, 0755, NULL);
 	if ((*main_queue) == (mqd_t) -1)
 	{
@@ -89,7 +86,6 @@ int8_t initTempQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *temp_queue)
 	}
 	
 	/* Create main queue*/
-	printf("Creating queue \"%s\"\n", LOGGER_QUEUE_NAME);
 	(*logger_queue) = mq_open(LOGGER_QUEUE_NAME, O_CREAT | O_WRONLY, 0755, NULL);
 	if ((*logger_queue) == (mqd_t) -1)
 	{
@@ -97,7 +93,6 @@ int8_t initTempQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *temp_queue)
 		return 1;
 	}
 	/* Create main queue*/
-	printf("Creating queue \"%s\"\n", TEMP_DRIVER_QUEUE_NAME);
 	(*temp_queue) = mq_open(TEMP_DRIVER_QUEUE_NAME, O_CREAT | O_RDONLY | O_NONBLOCK, 0755, NULL);
 	if ((*temp_queue) == (mqd_t) -1)
 	{
