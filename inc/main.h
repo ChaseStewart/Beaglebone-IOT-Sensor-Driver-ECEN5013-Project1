@@ -17,7 +17,7 @@
 #define __MY_MAIN_H__
 
 /* general vars */
-#define HEARTBEAT_PERIOD 1
+#define HEARTBEAT_PERIOD 3
 
 
 /* command-line options */

@@ -39,7 +39,7 @@ void * mainLogger(void *arg)
 	out_file = initLogger(logger_queue, arg);
 	if(out_file)
 	{
-		printf("Log file opened\n");
+		logFromLogger(logger_queue, LOG_INFO, "Log file opened\n");
 	}
 
 	sigemptyset(&set);
@@ -48,12 +48,9 @@ void * mainLogger(void *arg)
 	while(logger_state > STATE_SHUTDOWN)
 	{
 		sigwait(&set, &sig);
-		printf("Logger Awake!\n");
-		if (mq_notify(logger_queue, &my_sigevent) == -1 )
-		{
-			printf("Failed to notify!\n");
-			return NULL;
-		}
+
+		/* NOTE: this call is allowed to fail */
+		mq_notify(logger_queue, &my_sigevent);
 		
 		in_message = (message_t *) malloc(sizeof(message_t));
 		errno = 0;
@@ -77,15 +74,14 @@ void * mainLogger(void *arg)
 			}
 		}
 	}
+	logFromLogger(logger_queue, LOG_INFO, "Destroyed Logger\n");
 	fclose(out_file);	
-	printf("Destroyed Logger\n");
 	pthread_exit(NULL);
 }
 
 int8_t initLoggerQueues(mqd_t *main_queue, mqd_t *logger_queue)
 {
 	/* Create main queue*/
-	printf("Creating queue \"%s\"\n", MAIN_QUEUE_NAME);
 	(*main_queue) = mq_open(MAIN_QUEUE_NAME, O_CREAT | O_WRONLY , 0755, NULL );
 	if ((*main_queue) == (mqd_t) -1 )
 	{
@@ -93,7 +89,6 @@ int8_t initLoggerQueues(mqd_t *main_queue, mqd_t *logger_queue)
 	}
 
 	/* Create main queue*/
-	printf("Creating queue \"%s\"\n", LOGGER_QUEUE_NAME);
 	(*logger_queue) = mq_open(LOGGER_QUEUE_NAME, O_CREAT | O_RDONLY | O_NONBLOCK , 0755, NULL );
 	if ((*logger_queue) == (mqd_t) -1 )
 	{
@@ -108,7 +103,7 @@ int8_t logMessage(message_t *in_message)
 	int retval;
 	char dbg_lvl[16];
 	char mySource[16];
-	char outMessage[1024];
+	char outMessage[256];
 
 	switch(in_message->priority)
 	{
@@ -182,11 +177,9 @@ int8_t logFromLogger(mqd_t queue, int prio, char *message)
 	msg.priority = prio;
 	msg.source = LOGGER_ID;
 	msg.message = message;
-	retval = mq_send(queue, (const char *) &msg, sizeof(message_t), 0);
-	if (retval == -1)
-	{
-		printf("Failed to send to queue! Exiting...\n");
-		return 1;
-	}
+
+	/* intentionally don't use queue- no need */
+	logMessage(&msg);
+	return 0;
 }
 

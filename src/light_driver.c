@@ -14,8 +14,8 @@ void * mainLightDriver(void *arg)
 	message_t *in_message;
 	struct sigevent my_sigevent;
 
-	printf("Initializing Queues\n");	
 	initLightQueues(&main_queue, &logger_queue, &light_queue);
+	logFromLight(logger_queue, LOG_INFO, "Initialized LightQueues\n");	
 	printf("Initializing LightDriver\n");
 	
 	/* register to receive logger signals */
@@ -35,15 +35,13 @@ void * mainLightDriver(void *arg)
 	}
 	
 	initLightDriver();
-	printf("Setup LightDriver\n");
+	logFromLight(logger_queue, LOG_INFO, "Initialized Light Driver\n");	
 
 	sigemptyset(&set);
 	sigaddset(&set, LIGHT_DRIVER_SIGNO);
-
 	while(light_state > STATE_SHUTDOWN)
 	{
 		sigwait(&set, &sig);
-		printf("Light awake\n");
 		if (mq_notify(light_queue, &my_sigevent) == -1 )
 		{
 			printf("failed to light notify!\n");
@@ -63,7 +61,7 @@ void * mainLightDriver(void *arg)
 			/* process Light Driver Req */
 			if (in_message->id == LIGHT_DRIVER )
 			{
-				printf("Got Light Driver Message\n");
+				logFromLight(logger_queue, LOG_INFO, "Got Light Driver message\n");	
 			} 
 
 			else if (in_message->id == HEARTBEAT_REQ) 
@@ -73,7 +71,7 @@ void * mainLightDriver(void *arg)
 		}
 	}
 	
-	printf("Destroyed LightDriver\n");
+	logFromLight(logger_queue, LOG_INFO, "Destroyed LightDriver\n");
 	return NULL;
 }
 
@@ -82,7 +80,6 @@ int8_t initLightQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queu
 {
 
 	/* Create queue for main thread */
-	printf("Creating queue \"%s\"\n", MAIN_QUEUE_NAME);
 	(*main_queue) = mq_open(MAIN_QUEUE_NAME, O_CREAT | O_WRONLY, 0755, NULL);
 	if ((*main_queue) == (mqd_t) -1)
 	{
@@ -91,7 +88,6 @@ int8_t initLightQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queu
 	}
 	
 	/* Create queue for logger thread */
-	printf("Creating queue \"%s\"\n", LOGGER_QUEUE_NAME);
 	(*logger_queue) = mq_open(LOGGER_QUEUE_NAME, O_CREAT | O_WRONLY, 0755, NULL);
 	if ((*logger_queue) == (mqd_t) -1)
 	{
@@ -100,7 +96,6 @@ int8_t initLightQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queu
 	}
 
 	/* Create queue for logger thread */
-	printf("Creating queue \"%s\"\n", LIGHT_DRIVER_QUEUE_NAME);
 	(*light_queue) = mq_open(LIGHT_DRIVER_QUEUE_NAME, O_CREAT | O_RDONLY | O_NONBLOCK, 0755, NULL);
 	if ((*light_queue) == (mqd_t) -1)
 	{
