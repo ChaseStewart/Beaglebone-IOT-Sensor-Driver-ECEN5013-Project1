@@ -1,5 +1,14 @@
+#include <stdio.h>
 #include <stdint.h>
 #include <mqueue.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <linux/i2c-dev.h>
+#include <fcntl.h>
 
 
 #ifndef __MY_LIGHT_DRIVER_H__
@@ -103,4 +112,5 @@ int8_t lightEnableInt();
 /* Function to read from the Timing register */
 int8_t readInterruptRegister(uint8_t* data);
 
+int8_t logFromLight(mqd_t queue, int prio, char *message);
 #endif

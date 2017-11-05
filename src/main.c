@@ -4,80 +4,33 @@
 volatile int hbt_rsp[NUM_TASKS];
 volatile sig_atomic_t alrm_flag = 0;
 
-volatile int main_state   = STATE_RUNNING;
 volatile int logger_state = STATE_RUNNING;
+volatile int main_state   = STATE_STARTUP;
 volatile int temp_state   = STATE_RUNNING;
 volatile int light_state  = STATE_RUNNING;
-
-/* init condition vars */
-pthread_cond_t  heartbeat_cv;
-pthread_cond_t  logger_cv;
-pthread_cond_t  temp_cv;
-pthread_cond_t  light_cv;
-pthread_mutex_t heartbeat_mutex;
-pthread_mutex_t logger_mutex;
-pthread_mutex_t temp_mutex;
-pthread_mutex_t light_mutex;
 
 void my_print_help(void)
 {
 	printf("Usage: project1 [-f] filename [-h]\n");
 }
 
-void heartbeatAlarm(int sig)
-{
-	signal(SIGALRM, heartbeatAlarm);
-	alarm(1);
-	alrm_flag = 1;
-}
-
+/* set all threads to SHUTDOWN state one by one then reap all resources */
 void handleCtrlC(int sig)
 {
-	logger_state = STATE_SHUTDOWN;
-	pthread_cond_signal(&logger_cv);
-
-	temp_state   = STATE_SHUTDOWN;
-	pthread_cond_signal(&temp_cv);
-
-	light_state  = STATE_SHUTDOWN;
-	pthread_cond_signal(&light_cv);
-
 	main_state   = STATE_SHUTDOWN;
-}
-
-void handleSigLogger(int sig)
-{
-	signal(LOGGER_SIGNO, handleSigLogger);
-	pthread_cond_signal(&logger_cv);
-}
-
-void handleSigHbt(int sig)
-{
-	signal(HEARTBEAT_SIGNO, handleSigHbt);
-	pthread_cond_signal(&heartbeat_cv);
-}
-
-void handleSigLight(int sig)
-{
-	signal(LIGHT_DRIVER_SIGNO, handleSigLight);
-	pthread_cond_signal(&light_cv);
-}
-
-void handleSigTemp(int sig)
-{
-	signal(TEMP_DRIVER_SIGNO, handleSigTemp);
-	pthread_cond_signal(&temp_cv);
+	raise(HEARTBEAT_SIGNO);
+	
 }
 
 
 int main(int argc, char **argv)
 {
-	int retval, counter, curr_arg;
+	int retval, curr_arg, sig;
 	char out_file_name[MAX_FILELEN];
 	logger_args *my_log_args;
-
-	pthread_t temp_thread, light_thread, logger_thread;
 	message_t msg;
+	sigset_t set;
+	pthread_t temp_thread, light_thread, logger_thread;
 	mqd_t main_queue, logger_queue, temp_queue, light_queue; 
 
 	/* if no args provided, print help and exit */
@@ -90,29 +43,23 @@ int main(int argc, char **argv)
 	/* catch Necessary Signals */
 	signal(SIGINT, handleCtrlC);
 	signal(SIGTERM, handleCtrlC);
-	signal(LOGGER_SIGNO, handleSigLogger);
-	signal(TEMP_DRIVER_SIGNO, handleSigTemp);
-	signal(LIGHT_DRIVER_SIGNO, handleSigLight);
-	signal(HEARTBEAT_SIGNO, handleSigHbt);
-
-	/* instantiate SIGUSR cond/mutex */
-	pthread_cond_init(&heartbeat_cv, NULL);
-	pthread_cond_init(&logger_cv, NULL);
-	pthread_cond_init(&temp_cv, NULL);
-	pthread_cond_init(&light_cv, NULL);
-
-	pthread_mutex_init(&heartbeat_mutex, NULL);
-	pthread_mutex_init(&logger_mutex, NULL);
-	pthread_mutex_init(&temp_mutex, NULL);
-	pthread_mutex_init(&light_mutex, NULL);
-
+	
+	retval = blockAllSigs();
+	if (retval != 0)
+	{
+		printf("Failed to set sigmask.\n");
+		return 1;
+	}
 
 	/* do argc argv */
 	curr_arg = 0;
 	while(curr_arg >= 0)
 	{
 		curr_arg = getopt_long(argc, argv, "f:h", options, NULL);
-		if (curr_arg < 0){ continue;}
+		if (curr_arg < 0)
+		{
+			continue;
+		}
 		switch( curr_arg)
 		{
 			/* get output filename from -f arg */
@@ -132,122 +79,119 @@ int main(int argc, char **argv)
 	retval = initMainQueues(&main_queue, &logger_queue, &light_queue, &temp_queue);
 	if (retval != 0)
 	{
-		printf("Failed to initialize Main queues!\n");
+		logFromMain(logger_queue, LOG_CRITICAL, "Failed to initialize Main queues!\n");
 	}
 
-	
 	/* create the logger thread */
 	my_log_args = (logger_args *)malloc(sizeof(logger_args));
 	my_log_args->filename = out_file_name;
 	my_log_args->length = strlen(out_file_name);
 	if(pthread_create(&logger_thread, NULL, mainLogger, my_log_args) != 0)
 	{
-		printf("Failed to create logger thread!\n");
+		logFromMain(logger_queue, LOG_CRITICAL, "Failed to create logger thread!\n");
 		return 1;
 	}
 	
 	/* create the temp thread */
 	if(pthread_create(&temp_thread, NULL, mainTempDriver, NULL) != 0)
 	{
-		printf("Failed to create temperature thread!\n");
+		logFromMain(logger_queue, LOG_CRITICAL, "Failed to create temperature thread!\n");
 		return 1;
 	}
 	
 	/* create the light thread */
 	if(pthread_create(&light_thread, NULL, mainLightDriver, NULL) != 0)
 	{
-		printf("Failed to create light thread!\n");
+		logFromMain(logger_queue, LOG_CRITICAL, "Failed to create light thread!\n");
 		return 1;
 	}
 	
 
 	/* prepare main loop */
-	printf("Initialized children, Now moving to main loop\n");
-	counter = 0;
 	for (int idx = 0; idx< NUM_TASKS; idx++)
 	{
 		hbt_rsp[idx] = 0;
 	}
-		
-	signal(SIGALRM, heartbeatAlarm);
-	alarm(1);
 
-	/* Test message send to main thread */
-	msg.id = 0;
-	msg.timestamp = time(NULL);
-	msg.length = 0;
-	msg.source = MAIN_ID;
-	msg.message = NULL;
-	retval = mq_send(logger_queue, (const char *) &msg, sizeof(message_t), 0);
-	if (retval == -1)
-	{
-		printf("Failed to send to queue! Exiting...\n");
-		return 1;
-	}
-	printf("Sent message\n");
+	/* begin recurring heartbeat timer */		
+	alarm(HEARTBEAT_PERIOD);
 
-	/* main loop */
-	while (main_state == STATE_RUNNING)
+	logFromMain(logger_queue, LOG_INFO, "Starting main loop\n");
+
+	sigemptyset(&set);
+	sigaddset(&set, HEARTBEAT_SIGNO);
+	sigaddset(&set, SIGALRM);
+
+	/* main loop- go until STATE_ERROR or STATE_SHUTDOWN */
+	while (main_state > STATE_SHUTDOWN)
 	{
-		if (alrm_flag == 1)
+		sigwait(&set, &sig);
+		if (sig == HEARTBEAT_SIGNO)
 		{
-			alrm_flag = 0;
-			printf("Received alarm %d!\n", counter);
-			sendHeartbeat(main_queue, MAIN_ID);
-			counter++;
+			continue;	
 		}
-		sleep(2);
+
+		else if (sig == SIGALRM)
+		{
+			/* for the first time, only request a heartbeat*/
+			if (main_state == STATE_STARTUP)
+			{
+				main_state = STATE_REQ_RSP;
+				reqHeartbeats(logger_queue, temp_queue, light_queue);
+			}
+
+			/* for the second time, read current heartbeats then request more*/
+			else if (main_state == STATE_REQ_RSP)
+			{
+				processHeartbeats(main_queue, logger_queue);
+				reqHeartbeats(logger_queue, temp_queue, light_queue);
+			}
+		}
+		else
+		{
+			logFromMain(logger_queue, LOG_ERROR, "Something bad happened!\n");
+		}
+
+		alarm(HEARTBEAT_PERIOD);
 	}
-	printf("exiting program\n");
+	logFromMain(logger_queue, LOG_INFO, "exiting program\n");
+
+	temp_state  = STATE_SHUTDOWN;
+	pthread_kill(temp_thread, TEMP_DRIVER_SIGNO);
 	
-	/* on close, reap logger_thread */
-	if (pthread_join(logger_thread, NULL) != 0)
-	{
-		printf("failed to reap logger_thread\n");
-		return 1;
-	}
-
-	/* on close, reap temp_thread */
-	if (pthread_join(temp_thread, NULL) != 0)
-	{
-		printf("failed to reap temp_thread\n");
-		return 1;
-	}
-
-	/* on close, reap light_thread */
-	if (pthread_join(light_thread, NULL) != 0)
-	{
-		printf("failed to reap light_thread\n");
-		return 1;
-	}
-	printf("All Threads reaped!\n");
-
+	light_state = STATE_SHUTDOWN;
+	pthread_kill(light_thread, LIGHT_DRIVER_SIGNO);
+	
+	logger_state = STATE_SHUTDOWN;
+	pthread_kill(logger_thread, LOGGER_SIGNO);
+	
 	/* close this instance of the queue */
 	retval = mq_close(main_queue);
 	if (retval == -1)
 	{
-		printf("Failed to reap queue\n");
+		logFromMain(logger_queue, LOG_CRITICAL, "Failed to reap queue\n");
 		return 1;
 	}
+	
 	/* close this instance of the queue */
 	retval = mq_close(logger_queue);
 	if (retval == -1)
 	{
-		printf("Failed to reap queue\n");
+		logFromMain(logger_queue, LOG_CRITICAL, "Failed to reap queue\n");
 		return 1;
 	}
 	/* close this instance of the queue */
 	retval = mq_close(temp_queue);
 	if (retval == -1)
 	{
-		printf("Failed to reap queue\n");
+		logFromMain(logger_queue, LOG_CRITICAL, "Failed to reap queue\n");
 		return 1;
 	}
 	/* close this instance of the queue */
 	retval = mq_close(light_queue);
 	if (retval == -1)
 	{
-		printf("Failed to reap queue\n");
+		logFromMain(logger_queue, LOG_CRITICAL, "Failed to reap queue\n");
 		return 1;
 	}
 	printf("All main queues closed!\n");
@@ -256,65 +200,102 @@ int main(int argc, char **argv)
 	retval = mq_unlink(MAIN_QUEUE_NAME);
 	if (retval == -1)
 	{
-		printf("Failed to unlink queue\n");
+		logFromMain(logger_queue, LOG_CRITICAL, "Failed to unlink queue\n");
 		return 1;
 	}
-
-	/* now unlink the queue for all */
 	retval = mq_unlink(LOGGER_QUEUE_NAME);
 	if (retval == -1)
 	{
-		printf("Failed to unlink queue\n");
+		logFromMain(logger_queue, LOG_CRITICAL, "Failed to unlink queue\n");
 		return 1;
 	}
-	
-	/* now unlink the queue for all */
 	retval = mq_unlink(TEMP_DRIVER_QUEUE_NAME);
 	if (retval == -1)
 	{
-		printf("Failed to unlink queue\n");
+		logFromMain(logger_queue, LOG_CRITICAL, "Failed to unlink queue\n");
 		return 1;
 	}
-
-	/* now unlink the queue for all */
 	retval = mq_unlink(LIGHT_DRIVER_QUEUE_NAME);
 	if (retval == -1)
 	{
-		printf("Failed to unlink queue\n");
+		logFromMain(logger_queue, LOG_CRITICAL, "Failed to unlink queue\n");
 		return 1;
 	}
 	
-	/* instantiate SIGUSR cond/mutex */
-	pthread_cond_destroy(&heartbeat_cv);
-	pthread_cond_destroy(&logger_cv);
-	pthread_cond_destroy(&temp_cv);
-	pthread_cond_destroy(&light_cv);
+	/* on close, reap temp_thread */
+	if (pthread_join(temp_thread, NULL) != 0)
+	{
+		logFromMain(logger_queue, LOG_CRITICAL, "failed to reap temp_thread\n");
+		return 1;
+	}
+	/* on close, reap light_thread */
+	if (pthread_join(light_thread, NULL) != 0)
+	{
+		logFromMain(logger_queue, LOG_CRITICAL, "failed to reap light_thread\n");
+		return 1;
+	}
+	/* on close, reap logger_thread */
+	if (pthread_join(logger_thread, NULL) != 0)
+	{
+		logFromMain(logger_queue, LOG_CRITICAL, "failed to reap logger_thread\n");
+		return 1;
+	}
 
-	pthread_mutex_destroy(&heartbeat_mutex);
-	pthread_mutex_destroy(&logger_mutex);
-	pthread_mutex_destroy(&temp_mutex);
-	pthread_mutex_destroy(&light_mutex);
+	printf("Goodbye!\n");
 	return 0;
 }
 
 /* ensure all heartbeats are received */
-int8_t processHeartbeats(void)
+int8_t processHeartbeats(mqd_t main_queue, mqd_t logger_queue)
 {
+	int hbt_source, retval;
+	char in_buffer[4096];
+	char heartbeat_msg[1024];
+	message_t *in_message;
+	
+	in_message = (message_t *) malloc(sizeof(message_t));
+
+	/* process all messages and set corresponding hbt_rsp entry */
+	errno = 0;
+	while(errno != EAGAIN){
+		retval = mq_receive(main_queue, in_buffer, SIZE_MAX, NULL);
+		if (retval <= 0 && errno != EAGAIN)
+		{
+			break;
+		}
+
+		/* process heartbeat_response messages */
+		in_message = (message_t *)in_buffer;
+		if (in_message->id == HEARTBEAT_RSP)
+		{
+			hbt_rsp[in_message->source] = 1;
+		}
+	}
+
+	/* once all queue messages processed, ensure all heartbeats were there*/
 	for (int idx = 0; idx< NUM_TASKS; idx++)
 	{
-		if (hbt_rsp[idx] != 0)
+		if (hbt_rsp[idx] == 0)
 		{
-			/* TODO log error */
-			printf("Error with task %d", idx);
-			main_state = STATE_SHUTDOWN;
+			sprintf(heartbeat_msg, "Missing heartbeat response from %d\n", idx);
+			logFromMain(logger_queue, LOG_ERROR, heartbeat_msg);
+			main_state = STATE_ERROR;
 		}
 		hbt_rsp[idx] = 0;
+
 	}
-	if (main_state == STATE_SHUTDOWN)
+	if (main_state == STATE_ERROR)
 	{
+		printf("Missing heartbeats\n");
+		raise(SIGINT);
 		return 1;
 	}
-	return 0;
+	else
+	{
+		sprintf(heartbeat_msg, "Missing heartbeat response\n");
+		logFromMain(logger_queue, LOG_INFO, heartbeat_msg);
+		return 0;
+	}
 }
 
 
@@ -324,22 +305,13 @@ int8_t initMainQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queue
 
 	/* Create queue for main thread */
 	printf("Creating queue \"%s\"\n", MAIN_QUEUE_NAME);
-	(*main_queue) = mq_open(MAIN_QUEUE_NAME, O_CREAT | O_RDWR, 0755, NULL);
+	(*main_queue) = mq_open(MAIN_QUEUE_NAME, O_CREAT | O_RDONLY | O_NONBLOCK, 0755, NULL);
 	if ((*main_queue) == (mqd_t) -1)
 	{
 		printf("Failed to initialize queue! Exiting...\n");
 		return 1;
 	}
 
-	/* register to receive logger signals */
-	my_sigevent.sigev_notify = SIGEV_SIGNAL;
-	my_sigevent.sigev_signo  = HEARTBEAT_SIGNO;
-	if (mq_notify((*main_queue), &my_sigevent) == -1 )
-	{
-		printf("Failed to notify!\n");
-		return 1;
-	}
-	
 	/* Create queue for logger thread */
 	printf("Creating queue \"%s\"\n", LOGGER_QUEUE_NAME);
 	(*logger_queue) = mq_open(LOGGER_QUEUE_NAME, O_CREAT | O_WRONLY, 0755, NULL);
@@ -369,54 +341,63 @@ int8_t initMainQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queue
 	return 0;	
 }
 
-/* request other thread to send heartbeat */
-int8_t reqHeartbeat(mqd_t *queue)
+
+/* send heartbeat to the heartbeat queue */
+int8_t reqHeartbeats(mqd_t logger_queue, mqd_t temp_queue, mqd_t light_queue)
 {
-	int retval;
+	int idx, retval;
 	message_t *msg;
-	mqd_t my_queue;
 
 	/* craft heartbeat request */
 	msg = (message_t *) malloc(sizeof(message_t));
-	msg->id = HEARTBEAT_REQ;
+	msg->id        = HEARTBEAT_REQ;
 	msg->timestamp = time(NULL);
-	msg->length = 0;
-	msg->source = MAIN_ID; 
-	msg->message = NULL;
+	msg->length    = 0;
+	msg->source    = MAIN_ID;
+	msg->message   = NULL;
 
-	/* Attempt to send to the queue	*/
-	retval = mq_send((*queue), (const char *) msg, sizeof(message_t), 0);
-	if (retval == -1)
+	/* send logger heartbeat */
+	retval = mq_send(logger_queue, (const char *) msg, sizeof(message_t), 0);
+	if (retval < 0)
 	{
-		printf("Failed to send with retval %d\n", retval);
+		printf("Failed to send to logger with retval %d and errno %d \n", retval, errno);
 		return 1;
 	}
-	printf("Send succeeded with retval %d\n", retval);
+
+	/* send temp heartbeat */
+	retval = mq_send(temp_queue, (const char *) msg, sizeof(message_t), 0);
+	if (retval < 0)
+	{
+		printf("Failed to send to temp with retval %d and errno %d \n", retval, errno);
+		return 1;
+	}
+	
+	/* send light heartbeat */
+	retval = mq_send(light_queue, (const char *) msg, sizeof(message_t), 0);
+	if (retval < 0)
+	{
+		printf("Failed to send to light  with retval %d and errno %d \n", retval, errno);
+		return 1;
+	}
 	return 0;
 }
 
-/* send heartbeat to the heartbeat queue */
-int8_t sendHeartbeat(mqd_t queue, Task_Id id)
+int8_t logFromMain(mqd_t queue, int prio, char *message)
 {
 	int retval;
-	message_t *msg;
+	message_t msg;
 
-	/* craft heartbeat request */
-	msg = (message_t *) malloc(sizeof(message_t));
-	msg->id        = HEARTBEAT_RSP;
-	msg->timestamp = time(NULL);
-	msg->length    = 0;
-	msg->source    = id;
-	msg->message   = NULL;
-
-	/* attempt to send */
-	retval = mq_send(queue, (const char *) msg, sizeof(msg), 0);
-	if (retval <= 0)
+	msg.id = LOGGER;
+	msg.timestamp = time(NULL);
+	msg.length = strlen(message);
+	msg.priority = prio;
+	msg.source = MAIN_ID;
+	msg.message = message;
+	retval = mq_send(queue, (const char *) &msg, sizeof(message_t), 0);
+	if (retval == -1)
 	{
-		printf("Failed to send with retval %d and errno %d \n", retval, errno);
+		printf("Failed to send from main to queue! Exiting...\n");
 		return 1;
 	}
-	printf("Send succeeded with retval %d\n", retval);
-	return 0;
 }
 

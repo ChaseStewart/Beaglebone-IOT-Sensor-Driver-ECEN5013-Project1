@@ -10,6 +10,7 @@ SRCFILES =  src/main.c
 SRCFILES += src/light_driver.c
 SRCFILES += src/temp_driver.c
 SRCFILES += src/logger.c
+SRCFILES += src/common.c
 
 
 all: 
