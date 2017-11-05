@@ -28,7 +28,6 @@ void * mainLogger(void *arg)
 		printf("Failed to notify!\n");
 		return NULL;
 	}
-	printf("notified logger\n");
 	
 	retval = blockAllSigs();
 	if (retval != 0)
@@ -49,6 +48,7 @@ void * mainLogger(void *arg)
 	while(logger_state > STATE_SHUTDOWN)
 	{
 		sigwait(&set, &sig);
+		printf("Logger Awake!\n");
 		if (mq_notify(logger_queue, &my_sigevent) == -1 )
 		{
 			printf("Failed to notify!\n");
@@ -76,27 +76,10 @@ void * mainLogger(void *arg)
 				sendHeartbeat(main_queue, LOGGER_ID);
 			}
 		}
-		retval = mq_receive(logger_queue, in_buffer, SIZE_MAX, NULL);
-		if (retval <= 0 && errno != EAGAIN)
-		{
-			continue;
-		}
-		in_message = (message_t *)in_buffer;
-
-		/* process Log*/
-		if (in_message->id == LOGGER)
-		{
-			logMessage(in_message);
-		} 
-
-		else if (in_message->id == HEARTBEAT_REQ) 
-		{
-			sendHeartbeat(main_queue, LOGGER_ID);
-		}
 	}
 	fclose(out_file);	
 	printf("Destroyed Logger\n");
-	return NULL;
+	pthread_exit(NULL);
 }
 
 int8_t initLoggerQueues(mqd_t *main_queue, mqd_t *logger_queue)
@@ -175,6 +158,7 @@ int8_t logMessage(message_t *in_message)
 
 FILE *initLogger(mqd_t queue, void *arg)
 {
+	FILE *wipeFile;
 	char *logname;
 	logger_args *my_log_args;
 	
@@ -182,6 +166,8 @@ FILE *initLogger(mqd_t queue, void *arg)
 	my_log_args = (logger_args *)malloc(sizeof(logger_args));
 	my_log_args = (logger_args *) arg;
 	logname = my_log_args->filename;
+	wipeFile = fopen(logname, "w");
+	fclose(wipeFile);
 	return(fopen(logname, "a"));
 }
 

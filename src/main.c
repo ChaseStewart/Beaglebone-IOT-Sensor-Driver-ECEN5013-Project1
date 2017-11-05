@@ -19,6 +19,7 @@ void handleCtrlC(int sig)
 {
 	main_state   = STATE_SHUTDOWN;
 	raise(HEARTBEAT_SIGNO);
+	
 }
 
 
@@ -115,7 +116,7 @@ int main(int argc, char **argv)
 	/* begin recurring heartbeat timer */		
 	alarm(HEARTBEAT_PERIOD);
 
-	//logFromMain(logger_queue, LOG_INFO, "Starting main loop\n");
+	logFromMain(logger_queue, LOG_INFO, "Starting main loop\n");
 
 	sigemptyset(&set);
 	sigaddset(&set, HEARTBEAT_SIGNO);
@@ -142,7 +143,7 @@ int main(int argc, char **argv)
 			/* for the second time, read current heartbeats then request more*/
 			else if (main_state == STATE_REQ_RSP)
 			{
-				processHeartbeats(main_queue);
+				processHeartbeats(main_queue, logger_queue);
 				reqHeartbeats(logger_queue, temp_queue, light_queue);
 			}
 		}
@@ -154,38 +155,16 @@ int main(int argc, char **argv)
 		alarm(HEARTBEAT_PERIOD);
 	}
 	logFromMain(logger_queue, LOG_INFO, "exiting program\n");
-	
-	temp_state  = STATE_SHUTDOWN;
-	raise(TEMP_DRIVER_SIGNO);
 
+	temp_state  = STATE_SHUTDOWN;
+	pthread_kill(temp_thread, TEMP_DRIVER_SIGNO);
+	
 	light_state = STATE_SHUTDOWN;
-	raise(LIGHT_DRIVER_SIGNO);
+	pthread_kill(light_thread, LIGHT_DRIVER_SIGNO);
 	
 	logger_state = STATE_SHUTDOWN;
-	raise(LOGGER_SIGNO);
+	pthread_kill(logger_thread, LOGGER_SIGNO);
 	
-	/* on close, reap logger_thread */
-	if (pthread_join(logger_thread, NULL) != 0)
-	{
-		logFromMain(logger_queue, LOG_CRITICAL, "failed to reap logger_thread\n");
-		return 1;
-	}
-
-	/* on close, reap temp_thread */
-	if (pthread_join(temp_thread, NULL) != 0)
-	{
-		logFromMain(logger_queue, LOG_CRITICAL, "failed to reap temp_thread\n");
-		return 1;
-	}
-
-	/* on close, reap light_thread */
-	if (pthread_join(light_thread, NULL) != 0)
-	{
-		logFromMain(logger_queue, LOG_CRITICAL, "failed to reap light_thread\n");
-		return 1;
-	}
-	logFromMain(logger_queue, LOG_INFO, "All Threads reaped!\n");
-
 	/* close this instance of the queue */
 	retval = mq_close(main_queue);
 	if (retval == -1)
@@ -193,6 +172,7 @@ int main(int argc, char **argv)
 		logFromMain(logger_queue, LOG_CRITICAL, "Failed to reap queue\n");
 		return 1;
 	}
+	
 	/* close this instance of the queue */
 	retval = mq_close(logger_queue);
 	if (retval == -1)
@@ -214,7 +194,7 @@ int main(int argc, char **argv)
 		logFromMain(logger_queue, LOG_CRITICAL, "Failed to reap queue\n");
 		return 1;
 	}
-	logFromMain(logger_queue, LOG_INFO, "All main queues closed!\n");
+	printf("All main queues closed!\n");
 
 	/* now unlink the queue for all */
 	retval = mq_unlink(MAIN_QUEUE_NAME);
@@ -241,14 +221,36 @@ int main(int argc, char **argv)
 		logFromMain(logger_queue, LOG_CRITICAL, "Failed to unlink queue\n");
 		return 1;
 	}
+	
+	/* on close, reap temp_thread */
+	if (pthread_join(temp_thread, NULL) != 0)
+	{
+		logFromMain(logger_queue, LOG_CRITICAL, "failed to reap temp_thread\n");
+		return 1;
+	}
+	/* on close, reap light_thread */
+	if (pthread_join(light_thread, NULL) != 0)
+	{
+		logFromMain(logger_queue, LOG_CRITICAL, "failed to reap light_thread\n");
+		return 1;
+	}
+	/* on close, reap logger_thread */
+	if (pthread_join(logger_thread, NULL) != 0)
+	{
+		logFromMain(logger_queue, LOG_CRITICAL, "failed to reap logger_thread\n");
+		return 1;
+	}
+
+	printf("Goodbye!\n");
 	return 0;
 }
 
 /* ensure all heartbeats are received */
-int8_t processHeartbeats(mqd_t main_queue)
+int8_t processHeartbeats(mqd_t main_queue, mqd_t logger_queue)
 {
 	int hbt_source, retval;
 	char in_buffer[4096];
+	char heartbeat_msg[1024];
 	message_t *in_message;
 	
 	in_message = (message_t *) malloc(sizeof(message_t));
@@ -266,7 +268,6 @@ int8_t processHeartbeats(mqd_t main_queue)
 		in_message = (message_t *)in_buffer;
 		if (in_message->id == HEARTBEAT_RSP)
 		{
-			//printf("Got heartbeat response from %d\n", in_message->source);
 			hbt_rsp[in_message->source] = 1;
 		}
 	}
@@ -276,6 +277,8 @@ int8_t processHeartbeats(mqd_t main_queue)
 	{
 		if (hbt_rsp[idx] == 0)
 		{
+			sprintf(heartbeat_msg, "Missing heartbeat response from %d\n", idx);
+			logFromMain(logger_queue, LOG_ERROR, heartbeat_msg);
 			main_state = STATE_ERROR;
 		}
 		hbt_rsp[idx] = 0;
@@ -289,7 +292,8 @@ int8_t processHeartbeats(mqd_t main_queue)
 	}
 	else
 	{
-		printf("Got all heartbeats\n");
+		sprintf(heartbeat_msg, "Missing heartbeat response\n");
+		logFromMain(logger_queue, LOG_INFO, heartbeat_msg);
 		return 0;
 	}
 }

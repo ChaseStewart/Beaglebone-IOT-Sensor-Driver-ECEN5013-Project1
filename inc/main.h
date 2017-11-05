@@ -37,7 +37,7 @@ int8_t initMainQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queue
 int main(int argc, char **argv);
 
 /* ensure all heartbeats are received*/
-int8_t processHeartbeats(mqd_t queue);
+int8_t processHeartbeats(mqd_t main_queue, mqd_t logger_queue);
 
 /* request other threads to send a heartbeat to the heartbeat queue */
 int8_t reqHeartbeats(mqd_t logger_queue, mqd_t temp_queue, mqd_t light_queue);

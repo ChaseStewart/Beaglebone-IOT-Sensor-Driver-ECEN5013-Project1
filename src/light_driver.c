@@ -43,6 +43,7 @@ void * mainLightDriver(void *arg)
 	while(light_state > STATE_SHUTDOWN)
 	{
 		sigwait(&set, &sig);
+		printf("Light awake\n");
 		if (mq_notify(light_queue, &my_sigevent) == -1 )
 		{
 			printf("failed to light notify!\n");
@@ -69,23 +70,6 @@ void * mainLightDriver(void *arg)
 			{
 				sendHeartbeat(main_queue, LIGHT_DRIVER_ID);
 			}
-		}
-		retval = mq_receive(light_queue, in_buffer, SIZE_MAX, NULL);
-		if (retval <= 0 && errno != EAGAIN)
-		{
-			continue;
-		}
-		in_message = (message_t *)in_buffer;
-
-		/* process Light Driver Req */
-		if (in_message->id == LIGHT_DRIVER )
-		{
-			printf("Got Light Driver Message\n");
-		} 
-
-		else if (in_message->id == HEARTBEAT_REQ) 
-		{
-			sendHeartbeat(main_queue, LIGHT_DRIVER_ID);
 		}
 	}
 	

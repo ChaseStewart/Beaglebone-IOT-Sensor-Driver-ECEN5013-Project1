@@ -43,6 +43,8 @@ void *mainTempDriver(void *arg)
 	while(temp_state > STATE_SHUTDOWN)
 	{
 		sigwait(&set, &sig);
+		printf("Temp awake\n");
+
 		if (mq_notify(temp_queue, &my_sigevent) == -1 )
 		{
 			return NULL;
@@ -69,25 +71,7 @@ void *mainTempDriver(void *arg)
 				sendHeartbeat(main_queue, TEMP_DRIVER_ID);
 			}
 		}
-		retval = mq_receive(temp_queue, in_buffer, SIZE_MAX, NULL);
-		if (retval <= 0 && errno != EAGAIN)
-		{
-			continue;
-		}
-		in_message = (message_t *)in_buffer;
-
-		/* process Light Driver Req */
-		if (in_message->id == TEMP_DRIVER )
-		{
-			printf("Got Temp Driver Message\n");
-		} 
-
-		else if (in_message->id == HEARTBEAT_REQ) 
-		{
-			sendHeartbeat(main_queue, TEMP_DRIVER_ID);
-		}
 	}
-
 	printf("Destroyed Temp Driver\n");
 	return NULL;
 }
