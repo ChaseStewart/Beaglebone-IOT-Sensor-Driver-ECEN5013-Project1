@@ -23,7 +23,9 @@ int8_t sendHeartbeat(mqd_t queue, Task_Id my_id)
 		printf("Failed to send from %d  with retval %d\n", my_id, retval);
 		return 1;
 	}
+	printf("Sent from %d  with retval %d\n", my_id, retval);
 	return 0;
+
 }
 
 

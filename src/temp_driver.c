@@ -1,10 +1,8 @@
 #include "common.h"
 #include "temp_driver.h"
 
-#define FAKE_SENSORS 1 /* for chase who doesn't have the sensors */
 
-
-int32_t i2cHandle;	/*File Descriptor for I2C access*/
+int32_t i2cHandle_temp;	/*File Descriptor for I2C access*/
 
 void *mainTempDriver(void *arg)
 {
@@ -14,9 +12,12 @@ void *mainTempDriver(void *arg)
 	char in_buffer[4096];
 	message_t *in_message;
 	struct sigevent my_sigevent;
+	int16_t curTempCel = 0, curTempKel=0, curTempFah=0;
+	int8_t tempMsg[8];
 	
 	/* Create queue for main thread */
 	initTempQueues(&main_queue, &logger_queue, &temp_queue);
+	initTempDriver();
 	logFromTemp(logger_queue, LOG_INFO, "Initialized Temp Queues\n");
 	
 	/* register to receive temp_driver signals */
@@ -35,7 +36,7 @@ void *mainTempDriver(void *arg)
 	}
 	
 	logFromTemp(logger_queue, LOG_INFO, "Initialized Temp Driver\n");
-	initTempDriver();
+	
 
 	sigemptyset(&set);
 	sigaddset(&set, TEMP_DRIVER_SIGNO);
@@ -45,7 +46,7 @@ void *mainTempDriver(void *arg)
 		sigwait(&set, &sig);
 		if (mq_notify(temp_queue, &my_sigevent) == -1 )
 		{
-			return NULL;
+			
 		}
 
 		in_message = (message_t *) malloc(sizeof(message_t));
@@ -59,14 +60,42 @@ void *mainTempDriver(void *arg)
 			in_message = (message_t *)in_buffer;
 
 			/* process Temp Driver Req */
-			if (in_message->id == TEMP_DRIVER )
+			if (in_message->id == TEMP_DATA_REQ )
 			{
-				logFromTemp(logger_queue, LOG_INFO, "Destroyed Temp Driver\n");
-			} 
+				logFromTemp(logger_queue, LOG_INFO, "Got Temp data request\n");
+				message_t out_message;
+				out_message.id = TEMP_VALUE	;
+				out_message.source = TEMP_DRIVER_ID;
+				if(*(in_message->message) == 2)
+				{
+					sprintf(tempMsg,"%d",curTempKel);
+					printf("TemperatureMsgKEl:%d\n", curTempKel);
+				}
+				else if(*(in_message->message) == 1)
+				{
+					sprintf(tempMsg,"%d", curTempFah);
+					printf("TemperatureMsgTempFah:%d\n", curTempFah);
+				}
+				else
+				{
+					sprintf(tempMsg,"%d", curTempCel);
+					printf("TemperatureMsgCel:%d\n", curTempCel);
+				}
+				out_message.message = tempMsg;
+				out_message.length = strlen(tempMsg);
 
+				retval = mq_send(main_queue, (const char *) &out_message, sizeof(message_t), 0);
+				if (retval == -1)
+				{
+					printf("Failed to send from temperature  with retval %d\n", retval);
+				}
+			} 
 			else if (in_message->id == HEARTBEAT_REQ) 
-			{
+			{`
 				sendHeartbeat(main_queue, TEMP_DRIVER_ID);
+				currentTemperature(&curTempCel, UNIT_CELCIUS);
+				currentTemperature(&curTempFah, UNIT_FAHRENHEIT);
+				currentTemperature(&curTempKel, UNIT_KELVIN);
 			}
 		}
 	}
@@ -106,20 +135,14 @@ int8_t initTempQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *temp_queue)
 /* Function to configure the temp sensor */
 int8_t initTempDriver(void)
 {
-	if (FAKE_SENSORS)
-	{
-		printf("DID NOT ACTUALLY INIT TEMP SENSOR\n");
-		return 0;
-	}
-
 	printf("Setup Temp Driver\n");
-	if ((i2cHandle = open(I2C_FILE,O_RDWR)) < 0)
+	if ((i2cHandle_temp = open(I2C_FILE,O_RDWR)) < 0)
 	{
 		printf("Error Opening I2C device - Temp Sensor\n");
 		exit(1);
 	}
 
-	if(ioctl(i2cHandle,I2C_SLAVE, TEMP_SLAVE_ADDRESS) < 0)
+	if(ioctl(i2cHandle_temp,I2C_SLAVE, TEMP_SLAVE_ADDRESS) < 0)
 	{
 		printf("Failed to talk to Slave and Acquire bus access\n");
 		exit(1);
@@ -130,6 +153,7 @@ int8_t initTempDriver(void)
 /*Function to convert the Tmp102 ADC values to Temperature*/
 int16_t tempConversion(int16_t temp)
 {
+	
 	temp = temp >>4;
 	if(temp & 0x800) /*finding Negative values in 12-bit ADC result*/
 	{
@@ -147,7 +171,7 @@ int16_t tempConversion(int16_t temp)
 /* Function to write into the Temp Sensor Registers */
 int8_t writeTempRegisters(uint8_t data)
 {
-	if(write(i2cHandle, &data, 1) != 1)
+	if(write(i2cHandle_temp, &data, 1) != 1)
 	{
 		printf("I2C Write error seen\n");
 		return -1;
@@ -158,7 +182,7 @@ int8_t writeTempRegisters(uint8_t data)
 /* Function to write N-bytes into the Temp Sensor Registers */
 int8_t writeNTempRegisters(uint8_t* data, size_t length)
 {
-	if(write(i2cHandle, data, length) != length)	/*Writes N-bytes into file*/
+	if(write(i2cHandle_temp, data, length) != length)	/*Writes N-bytes into file*/
 	{
 		printf("I2C Write error seen\n");
 		return -1;
@@ -210,7 +234,7 @@ int8_t writeTempHigh(int16_t temp)
 int8_t readTempRegisters(uint8_t regAddr, uint8_t * readData)
 {
 	writeTempRegisters(regAddr);		/*Writing into Pointer Register helps in reading the corresponding register*/	
-	if(read(i2cHandle, readData, 1) != 1)
+	if(read(i2cHandle_temp, readData, 1) != 1)
 	{
 		printf("Less Number of bytes are received/read error\n");
 		return -1;
@@ -221,17 +245,22 @@ int8_t readTempRegisters(uint8_t regAddr, uint8_t * readData)
 /* Function to read N-bytes from the temp register, put result in retval, return status */
 int8_t readNTempRegisters(uint8_t regAddr, uint8_t* readData, size_t length)
 {
+	
 	char data[length];
 	writeTempRegisters(regAddr);	/*Writing into Pointer Register helps in reading the corresponding register*/
+
 	if(readData == NULL)
 	{
+		printf("Inside readNTempRegisters error\n");
 		return -1;
 	}
-	if(read(i2cHandle, data, length) != length)	/*Stores read value*/
+
+	if(read(i2cHandle_temp, data, length) != length)	/*Stores read value*/
 	{
 		printf("Less Number of bytes are received/read error\n");
 		return -1;
 	}
+
 	/*If the 16 bit value is readData[0] = 0x34, readData[1] = 0x12 so, typecasting into int16_t gives 0x1234 
 	 *This is little Endian issue and so, the bytes has to be reversed while storing in the 16-bit varible*/ 
 	for(int32_t i = length-1, j=0; i >= 0;i--, j++)
@@ -244,6 +273,7 @@ int8_t readNTempRegisters(uint8_t regAddr, uint8_t* readData, size_t length)
 /*Function to read the temperature, returns -1 on error and 0 on success*/
 int8_t readTemperature(int16_t* temp)
 {
+	
 	int8_t status;
 	status = readNTempRegisters(PTR_ADDRESS_TEMP,(uint8_t*)temp,2);
 	*temp = tempConversion(*temp);
@@ -303,6 +333,7 @@ int8_t configConvRate(uint16_t convRate)
 /*Function to give Temperature in requested values*/
 int8_t currentTemperature(int16_t* temp, TEMPUNIT_t units)
 {
+
 	int8_t status = 0;
 	status = readTemperature(temp);
 	if(UNIT_FAHRENHEIT == units)

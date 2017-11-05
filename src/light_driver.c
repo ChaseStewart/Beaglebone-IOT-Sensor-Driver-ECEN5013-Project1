@@ -1,7 +1,6 @@
 #include "common.h"
 #include "light_driver.h"
 
-#define FAKE_SENSORS 1 /* for chase who doesn't have the sensors */
 
 int32_t i2cHandle;	/*File Descriptor for I2C access*/
 
@@ -59,7 +58,7 @@ void * mainLightDriver(void *arg)
 			in_message = (message_t *)in_buffer;
 
 			/* process Light Driver Req */
-			if (in_message->id == LIGHT_DRIVER )
+			if (in_message->id == LIGHT_DATA_REQ )
 			{
 				logFromLight(logger_queue, LOG_INFO, "Got Light Driver message\n");	
 			} 
@@ -110,11 +109,6 @@ int8_t initLightQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queu
 /* Function to configure the light sensor */
 int8_t initLightDriver(void)
 {
-	if (FAKE_SENSORS)
-	{
-		printf("DID NOT ACTUALLY INIT LIGHT SENSOR\n");
-		return 0;
-	}
 
 	printf("Setup LightDriver\n");
 	if ((i2cHandle = open(I2C_FILE,O_RDWR)) < 0)

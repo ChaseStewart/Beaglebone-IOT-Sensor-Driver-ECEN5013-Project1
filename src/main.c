@@ -125,6 +125,30 @@ int main(int argc, char **argv)
 		sigwait(&set, &sig);
 		if (sig == HEARTBEAT_SIGNO)
 		{
+			message_t *in_message;
+			char in_buffer[4096];
+			in_message = (message_t *) malloc(sizeof(message_t));
+
+			/* process all messages and set corresponding hbt_rsp entry */
+			errno = 0;
+			while(errno != EAGAIN){
+				retval = mq_receive(main_queue, in_buffer, SIZE_MAX, NULL);
+				if (retval <= 0 && errno != EAGAIN)
+				{
+					break;
+				}
+
+				/* process heartbeat_response messages */
+				in_message = (message_t *)in_buffer;
+				if (in_message->id == HEARTBEAT_RSP)
+				{
+					hbt_rsp[in_message->source] = 1;
+				}
+				if(in_message->id == TEMP_VALUE)
+				{
+					printf("Temperature in Main: %s", in_message->message);
+				}
+			}
 			continue;	
 		}
 
@@ -135,7 +159,25 @@ int main(int argc, char **argv)
 			{
 				main_state = STATE_REQ_RSP;
 				reqHeartbeats(logger_queue, temp_queue, light_queue);
+
+				/*Sending Temperature Request*/
+				char a = 0;
+				message_t *msg;
+				/* craft heartbeat request */
+				msg = (message_t *) malloc(sizeof(message_t));
+				msg->id        = TEMP_DATA_REQ;
+				msg->timestamp = time(NULL);
+				msg->length    = 0;
+				msg->source    = MAIN_ID;
+				msg->message   = &a;
+				retval = mq_send(temp_queue, (const char *) msg, sizeof(message_t), 0);
+				if (retval < 0)
+				{
+					printf("Failed to send to temp with retval %d and errno %d \n", retval, errno);
+				}
+				printf("Temperature Requetsed\n");
 				pthread_kill(logger_thread, LOGGER_SIGNO);
+				pthread_kill(temp_thread, TEMP_DRIVER_SIGNO);
 			}
 
 			/* for the second time, read current heartbeats then request more*/
@@ -251,28 +293,7 @@ int main(int argc, char **argv)
 int8_t processHeartbeats(mqd_t main_queue, mqd_t logger_queue)
 {
 	int hbt_source, retval;
-	char in_buffer[4096];
 	char heartbeat_msg[1024];
-	message_t *in_message;
-	
-	in_message = (message_t *) malloc(sizeof(message_t));
-
-	/* process all messages and set corresponding hbt_rsp entry */
-	errno = 0;
-	while(errno != EAGAIN){
-		retval = mq_receive(main_queue, in_buffer, SIZE_MAX, NULL);
-		if (retval <= 0 && errno != EAGAIN)
-		{
-			break;
-		}
-
-		/* process heartbeat_response messages */
-		in_message = (message_t *)in_buffer;
-		if (in_message->id == HEARTBEAT_RSP)
-		{
-			hbt_rsp[in_message->source] = 1;
-		}
-	}
 
 	/* once all queue messages processed, ensure all heartbeats were there*/
 	for (int idx = 0; idx< NUM_TASKS; idx++)
@@ -281,7 +302,7 @@ int8_t processHeartbeats(mqd_t main_queue, mqd_t logger_queue)
 		{
 			sprintf(heartbeat_msg, "Missing heartbeat response from %d\n", idx);
 			logFromMain(logger_queue, LOG_ERROR, heartbeat_msg);
-			main_state = STATE_ERROR;
+			//main_state = STATE_ERROR;
 		}
 		hbt_rsp[idx] = 0;
 
