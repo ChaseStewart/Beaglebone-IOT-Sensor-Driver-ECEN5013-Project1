@@ -1,32 +1,77 @@
-#include <stdio.h>
 #include "light_driver.h"
 #include "common.h"
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <linux/i2c-dev.h>
-#include <fcntl.h>
+
+#define FAKE_SENSORS 1 /* for chase who doesn't have the sensors */
 
 int32_t i2cHandle;	/*File Descriptor for I2C access*/
 
 void * mainLightDriver(void *arg)
 {
+	int retval;
 	mqd_t main_queue, logger_queue, light_queue;
+	char in_buffer[4096];
+	message_t *in_message;
+	struct sigevent my_sigevent;
 
 	printf("Initializing Queues\n");	
 	initLightQueues(&main_queue, &logger_queue, &light_queue);
 	printf("Initializing LightDriver\n");
+	
+	/* register to receive logger signals */
+	my_sigevent.sigev_notify = SIGEV_SIGNAL;
+	my_sigevent.sigev_signo  = LIGHT_DRIVER_SIGNO;
+	if (mq_notify(light_queue, &my_sigevent) == -1 )
+	{
+		printf("Failed to light notify!\n");
+		return NULL;
+	}
+	
 	initLightDriver();
 	printf("Setup LightDriver\n");
 
-	while(light_state == STATE_RUNNING)
+	while(light_state > STATE_SHUTDOWN)
 	{
 		pthread_cond_wait(&light_cv, &light_mutex);
-		printf("Light Driver Awake!\n");
+		printf("light waking up\n");
+		in_message = (message_t *) malloc(sizeof(message_t));
+		while(errno != EAGAIN){
+			printf("Got here\n");
+			retval = mq_receive(light_queue, in_buffer, SIZE_MAX, NULL);
+			if (retval <= 0 && errno != EAGAIN)
+			{
+				continue;
+			}
+			in_message = (message_t *)in_buffer;
+
+			/* process Light Driver Req */
+			if (in_message->id == LIGHT_DRIVER )
+			{
+				printf("Got Light Driver Message\n");
+			} 
+
+			else if (in_message->id == HEARTBEAT_REQ) 
+			{
+				sendHeartbeat(main_queue, LIGHT_DRIVER_ID);
+			}
+		}
+		retval = mq_receive(light_queue, in_buffer, SIZE_MAX, NULL);
+		if (retval <= 0 && errno != EAGAIN)
+		{
+			continue;
+		}
+		in_message = (message_t *)in_buffer;
+
+		/* process Light Driver Req */
+		if (in_message->id == LIGHT_DRIVER )
+		{
+			printf("Got Light Driver Message\n");
+		} 
+
+		else if (in_message->id == HEARTBEAT_REQ) 
+		{
+			sendHeartbeat(main_queue, LIGHT_DRIVER_ID);
+		}
+		printf("back to sleep\n");
 	}
 	
 	printf("Destroyed LightDriver\n");
@@ -56,8 +101,8 @@ int8_t initLightQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queu
 	}
 
 	/* Create queue for logger thread */
-	printf("Creating queue \"%s\"\n", TEMP_DRIVER_QUEUE_NAME);
-	(*light_queue) = mq_open(TEMP_DRIVER_QUEUE_NAME, O_CREAT | O_WRONLY, 0755, NULL);
+	printf("Creating queue \"%s\"\n", LIGHT_DRIVER_QUEUE_NAME);
+	(*light_queue) = mq_open(LIGHT_DRIVER_QUEUE_NAME, O_CREAT | O_RDONLY | O_NONBLOCK, 0755, NULL);
 	if ((*light_queue) == (mqd_t) -1)
 	{
 		printf("Failed to initialize queue! Exiting...\n");
@@ -71,12 +116,16 @@ int8_t initLightQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queu
 /* Function to configure the light sensor */
 int8_t initLightDriver(void)
 {
-	printf("Setup LightDriver\n");
-	//sendHeartbeatLight();
+	if (FAKE_SENSORS)
+	{
+		printf("DID NOT ACTUALLY INIT LIGHT SENSOR\n");
+		return 0;
+	}
 
+	printf("Setup LightDriver\n");
 	if ((i2cHandle = open(I2C_FILE,O_RDWR)) < 0)
 	{
-		printf("Error Opening I2C device - Light Senosr\n");
+		printf("Error Opening I2C device - Light Sensor\n");
 		exit(1);
 	}
 
@@ -309,4 +358,25 @@ int8_t readInterruptRegister(uint8_t* data)
 	int8_t status;
 	status = readLightRegisters(LIGHT_INT_REG, data);
 	return status;
+}
+
+/* */
+int8_t logFromLight(mqd_t queue, int prio, char *message)
+{
+	int retval;
+	message_t msg;
+
+	msg.id = LOGGER;
+	msg.timestamp = time(NULL);
+	msg.length = strlen(message);
+	msg.priority = prio;
+	msg.source = LIGHT_DRIVER_ID;
+	msg.message = message;
+	retval = mq_send(queue, (const char *) &msg, sizeof(message_t), 0);
+	if (retval == -1)
+	{
+		printf("Failed to send to queue! Exiting...\n");
+		return 1;
+	}
+
 }

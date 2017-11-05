@@ -1,4 +1,13 @@
+#include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <linux/i2c-dev.h>
+#include <fcntl.h>
 #include <mqueue.h>
 
 #ifndef __MY_TEMP_DRIVER_H__
@@ -85,5 +94,7 @@ int8_t configConvRate(uint16_t convRate);
 
 /*Function to give Temperature in requested values*/
 int8_t currentTemperature(int16_t* temp, TEMPUNIT_t units);
+
+int8_t logFromTemp(mqd_t queue, int prio, char *message);
 
 #endif 

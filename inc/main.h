@@ -3,7 +3,6 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
 #include <time.h>
 #include <signal.h>
@@ -17,6 +16,9 @@
 #ifndef __MY_MAIN_H__
 #define __MY_MAIN_H__
 
+/* general vars */
+#define HEARTBEAT_PERIOD 1
+
 
 /* command-line options */
 static struct option options[] = {
@@ -28,23 +30,20 @@ static struct option options[] = {
 /* print a help message*/
 void my_print_help(void);
 
+/* create the main queues */
 int8_t initMainQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queue, mqd_t *temp_queue);
 
 /* main program for the project */
 int main(int argc, char **argv);
 
 /* ensure all heartbeats are received*/
-int8_t processHeartbeats(void);
+int8_t processHeartbeats(mqd_t queue);
 
-/* request other thread to send heartbeat */
-int8_t reqHeartbeat(mqd_t *queue);
-
-/* send heartbeat to the heartbeat queue */
-int8_t sendHeartbeat(mqd_t queue, Task_Id id);
+/* request other threads to send a heartbeat to the heartbeat queue */
+int8_t reqHeartbeats(mqd_t logger_queue, mqd_t temp_queue, mqd_t light_queue);
 
 /* handle the alarm to kick off a round of processHeartbeats */
 void heartbeatAlarm(int sig);
-
 
 /* catch various signals */
 void handleCtrlC(int sig);
@@ -57,5 +56,6 @@ void handleSigLight(int sig);
 
 void handleSigTemp(int sig);
 
+int8_t logFromMain(mqd_t queue, int prio, char *message);
 
 #endif
