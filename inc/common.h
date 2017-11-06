@@ -23,6 +23,7 @@
 #define LOGGER_QUEUE_NAME       "/logger\x00"
 #define TEMP_DRIVER_QUEUE_NAME  "/tempdriver\x00"
 #define LIGHT_DRIVER_QUEUE_NAME "/lightdriver\x00"
+#define CLIENT_QUEUE_NAME       "/client\x00"
 
 /* message state vars */
 #define STATE_ERROR   -1
@@ -37,6 +38,7 @@
 #define LOGGER_SIGNO       36
 #define TEMP_DRIVER_SIGNO  37
 #define LIGHT_DRIVER_SIGNO 38
+#define CLIENT_SIGNO       39
 
 /* log levels*/
 #define LOG_INFO 0
