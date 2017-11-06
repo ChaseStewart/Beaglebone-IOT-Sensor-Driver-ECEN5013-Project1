@@ -54,10 +54,10 @@ extern volatile int light_state;
 
 
 /* define message_type */
-typedef enum message_type {HEARTBEAT_REQ, HEARTBEAT_RSP, TEMP_VALUE, TEMP_DATA_REQ, LIGHT_VALUE, LIGHT_DATA_REQ, LOGGER, FILE_CHANGE} Message_Type;
+typedef enum message_type {HEARTBEAT_REQ, HEARTBEAT_RSP, TEMP_VALUE, TEMP_DATA_REQ, LIGHT_VALUE, LIGHT_DATA_REQ, LOGGER, FILE_CHANGE, CLIENT_SHUTDOWN} Message_Type;
 
 /* enumerate each task */
-typedef enum task_id {TEMP_DRIVER_ID, LIGHT_DRIVER_ID, LOGGER_ID, MAIN_ID}  Task_Id;
+typedef enum task_id {TEMP_DRIVER_ID, LIGHT_DRIVER_ID, LOGGER_ID, MAIN_ID, CLIENT_ID}  Task_Id;
 
 /* Structure for message Queues */
 typedef struct
