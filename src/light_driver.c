@@ -2,12 +2,12 @@
 #include "light_driver.h"
 
 int32_t i2cHandle;	/*File Descriptor for I2C access*/
+mqd_t main_queue, logger_queue, light_queue;
 
 void * mainLightDriver(void *arg)
 {
 	sigset_t set;
 	int retval, sig;
-	mqd_t main_queue, logger_queue, light_queue;
 	char in_buffer[4096];
 	message_t *in_message;
 	struct sigevent my_sigevent;
@@ -16,22 +16,22 @@ void * mainLightDriver(void *arg)
 	bool isItDark;
 
 	initLightQueues(&main_queue, &logger_queue, &light_queue);
-	logFromLight(logger_queue, LOG_INFO, "Initialized LightQueues\n");	
-	printf("Initializing LightDriver\n");
+	logFromLight(logger_queue, LOG_INFO, "Initialized Light Task\n");	
+	
 	
 	/* register to receive logger signals */
 	my_sigevent.sigev_notify = SIGEV_SIGNAL;
 	my_sigevent.sigev_signo  = LIGHT_DRIVER_SIGNO;
 	if (mq_notify(light_queue, &my_sigevent) == -1 )
 	{
-		printf("failed to light notify!\n");
+		logFromLight(logger_queue, LOG_ERROR,"failed to light notify!\n");
 		return NULL;
 	}
 	
 	retval = blockAllSigs();
 	if (retval != 0)
 	{
-		printf("Failed to set sigmask.\n");
+		logFromLight(logger_queue, LOG_ERROR,"Failed to set sigmask.\n");
 		return NULL;
 	}
 	
@@ -154,7 +154,7 @@ int8_t writeLightRegisters(uint8_t data)
 {
 	if(write(i2cHandle, &data, 1) != 1)
 	{
-		printf("I2C Write error seen\n");
+		logFromLight(logger_queue, LOG_ERROR,"I2C Write error seen\n");
 		return -1;
 	}
 	return 0;
@@ -165,7 +165,7 @@ int8_t writeNLightRegisters(uint8_t* data, size_t length)
 {
 	if(write(i2cHandle, data, length) != length)	/*Writes N-bytes into file*/
 	{
-		printf("I2C Write error seen\n");
+		logFromLight(logger_queue, LOG_ERROR,"I2C Write error seen\n");
 		return -1;
 	}
 	return 0;
@@ -189,7 +189,7 @@ int8_t readLightRegisters(uint8_t regAddr, uint8_t *readData)
 	writeLightRegisters(regAddr);		/*Writing into register*/	
 	if(read(i2cHandle, readData, 1) != 1)
 	{
-		printf("Less Number of bytes are received/read error\n");
+		logFromLight(logger_queue, LOG_ERROR,"Less Number of bytes are received/read error\n");
 		return -1;
 	}
 	return 0;
@@ -206,7 +206,7 @@ int8_t readNLightRegisters(uint8_t regAddr, uint8_t *readData, uint8_t length)
 	}
 	if(read(i2cHandle, readData, length) != length)	/*Stores read value*/
 	{
-		printf("Less Number of bytes are received/read error\n");
+		logFromLight(logger_queue, LOG_ERROR,"Less Number of bytes are received/read error\n");
 		return -1;
 	}
 	return 0;
@@ -386,7 +386,7 @@ int8_t logFromLight(mqd_t queue, int prio, char *message)
 	retval = mq_send(queue, (const char *) &msg, sizeof(message_t), 0);
 	if (retval == -1)
 	{
-		printf("Failed to send to queue! Exiting...\n");
+		logFromLight(logger_queue, LOG_ERROR,"Failed to send to queue! Exiting...\n");
 		return 1;
 	}
 
