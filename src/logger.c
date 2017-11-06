@@ -29,13 +29,15 @@ void * mainLogger(void *arg)
 		return NULL;
 	}
 	
+	/* block all common sigs in this thread as well */	
 	retval = blockAllSigs();
 	if (retval != 0)
 	{
 		printf("Failed to set sigmask.\n");
 		return (void *) 1;
 	}
-	
+
+	/* open logfile from provided -f arg */	
 	out_file = initLogger(logger_queue, arg);
 	if(out_file)
 	{
@@ -52,6 +54,8 @@ void * mainLogger(void *arg)
 		/* NOTE: this call is allowed to fail */
 		mq_notify(logger_queue, &my_sigevent);
 		
+
+		/* read nonblocking until queue is empty, do what's needed */
 		in_message = (message_t *) malloc(sizeof(message_t));
 		errno = 0;
 		while(errno != EAGAIN){

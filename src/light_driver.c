@@ -1,15 +1,16 @@
 #include "common.h"
 #include "light_driver.h"
 
-
 int32_t i2cHandle;	/*File Descriptor for I2C access*/
 
 void * mainLightDriver(void *arg)
 {
+	bool isItDark;
 	sigset_t set;
 	int retval, sig;
 	mqd_t main_queue, logger_queue, light_queue;
 	char in_buffer[4096];
+	char dark_or_light[32];
 	message_t *in_message;
 	struct sigevent my_sigevent;
 
@@ -23,14 +24,14 @@ void * mainLightDriver(void *arg)
 	if (mq_notify(light_queue, &my_sigevent) == -1 )
 	{
 		printf("failed to light notify!\n");
-		return NULL;
+		return (void *) 1;
 	}
 	
 	retval = blockAllSigs();
 	if (retval != 0)
 	{
 		printf("Failed to set sigmask.\n");
-		return NULL;
+		return (void *) 1;
 	}
 	
 	initLightDriver();
@@ -41,11 +42,7 @@ void * mainLightDriver(void *arg)
 	while(light_state > STATE_SHUTDOWN)
 	{
 		sigwait(&set, &sig);
-		if (mq_notify(light_queue, &my_sigevent) == -1 )
-		{
-			printf("failed to light notify!\n");
-			return NULL;
-		}
+		mq_notify(light_queue, &my_sigevent);
 
 		in_message = (message_t *) malloc(sizeof(message_t));
 		errno = 0;
@@ -61,6 +58,30 @@ void * mainLightDriver(void *arg)
 			if (in_message->id == LIGHT_DATA_REQ )
 			{
 				logFromLight(logger_queue, LOG_INFO, "Got Light Driver message\n");	
+				message_t out_message;
+				out_message.id = LIGHT_VALUE;
+				out_message.source = LIGHT_DRIVER_ID;
+
+				/* TODO get light value */
+				isItDark = isDark();
+				if (isItDark)
+				{
+					sprintf(dark_or_light, "It is dark around me\n" );
+				}
+				else
+				{
+					sprintf(dark_or_light, "it is light around me\n" );
+				}
+				out_message.message = dark_or_light;
+				out_message.length = strlen(dark_or_light);
+									
+			
+				retval = mq_send(main_queue, (const char *) &out_message, sizeof(message_t), 0);
+				if (retval == -1)
+				{
+					logFromLight(logger_queue, LOG_ERROR, "Failed to send reading from light_driver\n");
+				}
+				
 			} 
 
 			else if (in_message->id == HEARTBEAT_REQ) 
@@ -71,6 +92,7 @@ void * mainLightDriver(void *arg)
 	}
 	
 	logFromLight(logger_queue, LOG_INFO, "Destroyed LightDriver\n");
+	free(in_message);
 	return NULL;
 }
 

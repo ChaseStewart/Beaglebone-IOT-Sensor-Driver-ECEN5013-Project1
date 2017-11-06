@@ -44,10 +44,7 @@ void *mainTempDriver(void *arg)
 	while(temp_state > STATE_SHUTDOWN)
 	{
 		sigwait(&set, &sig);
-		if (mq_notify(temp_queue, &my_sigevent) == -1 )
-		{
-			
-		}
+		mq_notify(temp_queue, &my_sigevent);
 
 		in_message = (message_t *) malloc(sizeof(message_t));
 		errno = 0;
@@ -91,7 +88,7 @@ void *mainTempDriver(void *arg)
 				}
 			} 
 			else if (in_message->id == HEARTBEAT_REQ) 
-			{`
+			{
 				sendHeartbeat(main_queue, TEMP_DRIVER_ID);
 				currentTemperature(&curTempCel, UNIT_CELCIUS);
 				currentTemperature(&curTempFah, UNIT_FAHRENHEIT);
@@ -100,6 +97,7 @@ void *mainTempDriver(void *arg)
 		}
 	}
 	logFromTemp(logger_queue, LOG_INFO, "Destroyed Temp Driver\n");
+	free(in_message);
 	return NULL;
 }
 

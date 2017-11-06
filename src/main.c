@@ -89,7 +89,9 @@ int main(int argc, char **argv)
 		logFromMain(logger_queue, LOG_CRITICAL, "Failed to create logger thread!\n");
 		return 1;
 	}
-	
+	free(my_log_args);	
+
+
 	/* create the temp thread */
 	if(pthread_create(&temp_thread, NULL, mainTempDriver, NULL) != 0)
 	{
@@ -150,6 +152,7 @@ int main(int argc, char **argv)
 				}
 			}
 			continue;	
+			free(in_message);
 		}
 
 		else if (sig == SIGALRM)
@@ -175,9 +178,10 @@ int main(int argc, char **argv)
 				{
 					printf("Failed to send to temp with retval %d and errno %d \n", retval, errno);
 				}
-				printf("Temperature Requetsed\n");
+				printf("Temperature Requested\n");
 				pthread_kill(logger_thread, LOGGER_SIGNO);
 				pthread_kill(temp_thread, TEMP_DRIVER_SIGNO);
+				free(msg);
 			}
 
 			/* for the second time, read current heartbeats then request more*/
@@ -188,6 +192,8 @@ int main(int argc, char **argv)
 				pthread_kill(logger_thread, LOGGER_SIGNO);
 			}
 		}
+
+		/* should never get here */
 		else
 		{
 			logFromMain(logger_queue, LOG_ERROR, "Something bad happened!\n");
@@ -286,6 +292,9 @@ int main(int argc, char **argv)
 	}
 
 	printf("Goodbye!\n");
+
+	/* TODO flash LED 5 times then leave it lit*/
+
 	return 0;
 }
 
@@ -294,13 +303,28 @@ int8_t processHeartbeats(mqd_t main_queue, mqd_t logger_queue)
 {
 	int hbt_source, retval;
 	char heartbeat_msg[1024];
+	char mySource[32];
 
 	/* once all queue messages processed, ensure all heartbeats were there*/
 	for (int idx = 0; idx< NUM_TASKS; idx++)
 	{
 		if (hbt_rsp[idx] == 0)
 		{
-			sprintf(heartbeat_msg, "Missing heartbeat response from %d\n", idx);
+			switch(idx)
+			{
+				case TEMP_DRIVER_ID:
+					strcpy(mySource, "TEMP_DRIVER");
+					break;
+				case LIGHT_DRIVER_ID:
+					strcpy(mySource, "LIGHT_DRIVER");
+					break;
+				case LOGGER_ID:
+					strcpy(mySource, "LOGGER");
+					break;
+				default:
+					return 1;
+			}
+			sprintf(heartbeat_msg, "Missing heartbeat response from %s\n", mySource);
 			logFromMain(logger_queue, LOG_ERROR, heartbeat_msg);
 			//main_state = STATE_ERROR;
 		}
@@ -407,6 +431,7 @@ int8_t logFromMain(mqd_t queue, int prio, char *message)
 	int retval;
 	message_t msg;
 
+	/* form message from provided args and send it to logger queue */
 	msg.id = LOGGER;
 	msg.timestamp = time(NULL);
 	msg.length = strlen(message);
