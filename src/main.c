@@ -324,7 +324,31 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	printf("Goodbye!\n");
+	main_state = STATE_ERROR;
+
+	if(main_state == STATE_ERROR)
+	{
+		FILE *export_file = NULL;
+		char str1[] = "0";
+        char str[] = "1"; 
+
+		
+        export_file = fopen ("/sys/class/leds/beaglebone:green:usr3/brightness", "w");
+		printf("Error and exiting!\n");
+		for(int i=0; i<5;i++)
+		{
+			
+        	fwrite (str, 1, sizeof(str), export_file); 
+			sleep(1);
+			fwrite (str1, 1, sizeof(str1), export_file);   //set the pin to LOW
+			sleep(1);
+		}
+		fclose (export_file);
+	}
+	else
+	{
+		printf("Goodbye!\n");
+	}
 	return 0;
 }
 
