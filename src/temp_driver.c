@@ -5,12 +5,12 @@
 
 
 int32_t i2cHandle;	/*File Descriptor for I2C access*/
-
+mqd_t main_queue, logger_queue, temp_queue;
 void *mainTempDriver(void *arg)
 {
 	sigset_t set;
 	int retval, sig;
-	mqd_t main_queue, logger_queue, temp_queue;
+	
 	char in_buffer[4096];
 	message_t *in_message;
 	struct sigevent my_sigevent;
@@ -82,11 +82,10 @@ void *mainTempDriver(void *arg)
 				out_message.timestamp = time(NULL);
 				out_message.message = tempMsg;
 				out_message.length = strlen(tempMsg);
-				//logFromTemp(logger_queue, LOG_INFO, tempMsg);
 				retval = mq_send(main_queue, (const char *) &out_message, sizeof(message_t), 0);
 				if (retval == -1)
 				{
-					printf("Failed to send from temperature  with retval %d\n", retval);
+					logFromTemp(logger_queue, LOG_ERROR,"Failed to send from temperature");
 				}
 			} 
 
@@ -173,7 +172,7 @@ int8_t writeTempRegisters(uint8_t data)
 {
 	if(write(i2cHandle, &data, 1) != 1)
 	{
-		printf("I2C Write error seen\n");
+		logFromTemp(logger_queue, LOG_ERROR,"I2C Write error seen\n");
 		return -1;
 	}
 	return 0;
@@ -184,7 +183,7 @@ int8_t writeNTempRegisters(uint8_t* data, size_t length)
 {
 	if(write(i2cHandle, data, length) != length)	/*Writes N-bytes into file*/
 	{
-		printf("I2C Write error seen\n");
+		logFromTemp(logger_queue, LOG_ERROR,"I2C Write error seen\n");
 		return -1;
 	}
 	return 0;
@@ -236,7 +235,7 @@ int8_t readTempRegisters(uint8_t regAddr, uint8_t * readData)
 	writeTempRegisters(regAddr);		/*Writing into Pointer Register helps in reading the corresponding register*/	
 	if(read(i2cHandle, readData, 1) != 1)
 	{
-		printf("Less Number of bytes are received/read error\n");
+		logFromTemp(logger_queue, LOG_ERROR,"Less Number of bytes are received/read error\n");
 		return -1;
 	}
 	return 0;
@@ -253,7 +252,7 @@ int8_t readNTempRegisters(uint8_t regAddr, uint8_t* readData, size_t length)
 	}
 	if(read(i2cHandle, data, length) != length)	/*Stores read value*/
 	{
-		printf("Less Number of bytes are received/read error\n");
+		logFromTemp(logger_queue, LOG_ERROR,"Less Number of bytes are received/read error\n");
 		return -1;
 	}
 	/*If the 16 bit value is readData[0] = 0x34, readData[1] = 0x12 so, typecasting into int16_t gives 0x1234 
@@ -357,5 +356,4 @@ int8_t logFromTemp(mqd_t queue, int prio, char *message)
 		printf("Failed to send to queue! Exiting...\n");
 		return 1;
 	}
-
 }
