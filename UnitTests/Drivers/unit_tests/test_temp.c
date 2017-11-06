@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include "common.h"
 #include "temp_driver.h"
+ #include "light_driver.h"
 
 void test_currentTemperature_celcius(void **state)
 {
@@ -41,11 +42,33 @@ void test_currentTemperature_kelvin(void **state)
 	assert_int_equal(temp,293);
 }
 
-int16_t tempConversionPositive(void **state)
+void tempConversionPositive(void **state)
 {
-	int16_t temp = 0x0170;
+	int16_t temp = 0x1700;
 	temp = tempConversion(temp);
 	assert_int_equal(temp,23);
+}
+
+void tempConversion0(void **state)
+{
+	int16_t temp = 0;
+	temp = tempConversion(temp);
+	assert_int_equal(temp,0);
+}
+
+void tempConversionNegative(void **state)
+{
+	int16_t temp = 0xFF00;
+	temp = tempConversion(temp);
+	assert_int_equal(temp,-1);	
+}
+
+void test_lightSensorLux1(void **state)
+{
+	float data;
+	int8_t ret;
+	ret = lightSensorLux(&data, 0x2345, 0x50);
+
 }
 
 
@@ -56,7 +79,10 @@ int main(int argc, char **argv)	  /*this is main()*/
     cmocka_unit_test(test_currentTemperature_celcius),
     cmocka_unit_test(test_currentTemperature_Fah),
     cmocka_unit_test(test_currentTemperature_kelvin),
-    cmocka_unit_test(tempConversionPositive)
+    cmocka_unit_test(tempConversionPositive),
+    cmocka_unit_test(tempConversion0),
+    cmocka_unit_test(tempConversionNegative),
+    cmocka_unit_test(test_lightSensorLux1)
   };
   return cmocka_run_group_tests(tests, NULL, NULL);
 }

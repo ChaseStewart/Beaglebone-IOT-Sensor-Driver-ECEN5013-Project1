@@ -35,10 +35,11 @@ CFLAGS += -I $(CMOCKA_INCLUDE_DIR)
 
 ifeq ($(SELECT), TEMP)
 LIB_SRCS = \
-	temp_driver.c
+	temp_driver.c \
+	light_driver.c
 else ifeq ($(SELECT), LIGHT)
 LIB_SRCS = \
-	light_driver.c
+	 light_driver.c
 else
 LIB_SRCS = \
 	

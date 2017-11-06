@@ -89,13 +89,13 @@ int8_t readADC0(uint16_t* lux);
 int8_t readADC1(uint16_t* lux);
 
 /*Function to know the Sensor Lux Value*/
-int8_t lightSensorLux(float* intensity);
+int8_t lightSensorLux(float* intensity, uint16_t iCH0,uint16_t iCH1);
 
 /*Function to find if the light is dark*/
-bool isDark();
+bool isDark(uint16_t iCH0,uint16_t iCH1);
 
 /*Function to find if the light is dark*/
-bool isBright();
+bool isBright(uint16_t iCH0,uint16_t iCH1);
 
 /* Function to configure integration time */
 int8_t configTiming(INTTIME_T data);

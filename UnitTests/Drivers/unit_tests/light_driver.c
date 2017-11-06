@@ -22,13 +22,13 @@ void * mainLightDriver(void *arg)
 	/* register to receive logger signals */
 	my_sigevent.sigev_notify = SIGEV_SIGNAL;
 	my_sigevent.sigev_signo  = LIGHT_DRIVER_SIGNO;
-	if (mq_notify(light_queue, &my_sigevent) == -1 )
+	//if (mq_notify(light_queue, &my_sigevent) == -1 )
 	{
 		logFromLight(logger_queue, LOG_ERROR,"failed to light notify!\n");
 		return NULL;
 	}
 	
-	retval = blockAllSigs();
+	//retval = blockAllSigs();
 	if (retval != 0)
 	{
 		logFromLight(logger_queue, LOG_ERROR,"Failed to set sigmask.\n");
@@ -40,10 +40,10 @@ void * mainLightDriver(void *arg)
 
 	sigemptyset(&set);
 	sigaddset(&set, LIGHT_DRIVER_SIGNO);
-	while(light_state > STATE_SHUTDOWN)
+	while(7 > STATE_SHUTDOWN)
 	{
 		sigwait(&set, &sig);
-		if (mq_notify(light_queue, &my_sigevent) == -1 )
+	//	if (mq_notify(light_queue, &my_sigevent) == -1 )
 		{
 			;
 		}
@@ -51,7 +51,7 @@ void * mainLightDriver(void *arg)
 		in_message = (message_t *) malloc(sizeof(message_t));
 		errno = 0;
 		while(errno != EAGAIN){
-			retval = mq_receive(light_queue, in_buffer, SIZE_MAX, NULL);
+		//	retval = mq_receive(light_queue, in_buffer, SIZE_MAX, NULL);
 			if (retval <= 0 && errno != EAGAIN)
 			{
 				continue;
@@ -64,7 +64,7 @@ void * mainLightDriver(void *arg)
 				logFromLight(logger_queue, LOG_INFO, "Got Light Data Req\n");	
 				
 				/* TODO get light value */
-				isItDark = isDark();
+				//isItDark = isDark();
 				if (isItDark)
 				{
 					sprintf(dark_or_light, "It is dark around me\n" );
@@ -79,7 +79,7 @@ void * mainLightDriver(void *arg)
 				out_message.timestamp = time(NULL);
 				out_message.message = dark_or_light;
 				out_message.length = strlen(dark_or_light);					
-				retval = mq_send(main_queue, (const char *) &out_message, sizeof(message_t), 0);
+			//	retval = mq_send(main_queue, (const char *) &out_message, sizeof(message_t), 0);
 				if (retval == -1)
 				{
 					logFromLight(logger_queue, LOG_ERROR, "Failed to send reading from light_driver\n");
@@ -88,7 +88,7 @@ void * mainLightDriver(void *arg)
 
 			else if (in_message->id == HEARTBEAT_REQ) 
 			{
-				sendHeartbeat(main_queue, LIGHT_DRIVER_ID);
+			//	sendHeartbeat(main_queue, LIGHT_DRIVER_ID);
 			}
 		}
 	}
@@ -102,7 +102,7 @@ int8_t initLightQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queu
 {
 
 	/* Create queue for main thread */
-	(*main_queue) = mq_open(MAIN_QUEUE_NAME, O_CREAT | O_WRONLY, 0755, NULL);
+	//(*main_queue) = mq_open(MAIN_QUEUE_NAME, O_CREAT | O_WRONLY, 0755, NULL);
 	if ((*main_queue) == (mqd_t) -1)
 	{
 		printf("Failed to initialize queue! Exiting...\n");
@@ -110,7 +110,7 @@ int8_t initLightQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queu
 	}
 	
 	/* Create queue for logger thread */
-	(*logger_queue) = mq_open(LOGGER_QUEUE_NAME, O_CREAT | O_WRONLY, 0755, NULL);
+	//(*logger_queue) = mq_open(LOGGER_QUEUE_NAME, O_CREAT | O_WRONLY, 0755, NULL);
 	if ((*logger_queue) == (mqd_t) -1)
 	{
 		printf("Failed to initialize queue! Exiting...\n");
@@ -118,7 +118,7 @@ int8_t initLightQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queu
 	}
 
 	/* Create queue for logger thread */
-	(*light_queue) = mq_open(LIGHT_DRIVER_QUEUE_NAME, O_CREAT | O_RDONLY | O_NONBLOCK, 0755, NULL);
+	//(*light_queue) = mq_open(LIGHT_DRIVER_QUEUE_NAME, O_CREAT | O_RDONLY | O_NONBLOCK, 0755, NULL);
 	if ((*light_queue) == (mqd_t) -1)
 	{
 		printf("Failed to initialize queue! Exiting...\n");
@@ -245,17 +245,16 @@ int8_t readADC1(uint16_t* lux)
 	return status;
 }
 
+
 /*Function to know the Sensor Lux Value*/
-int8_t lightSensorLux(float* intensity)
+int8_t lightSensorLux(float* intensity, uint16_t iCH0,uint16_t iCH1)
 {
-	uint16_t iCH0 = 0;
-	uint16_t iCH1 = 0;
+
 	float CH0 = 0;
 	float CH1 = 0;
 	float selectFormula = 0;
 	int8_t status;
-	status = readADC0(&iCH0);
-	status = readADC1(&iCH1);
+	
 	CH0 = iCH0;
 	CH1 = iCH1;
 	selectFormula = CH1/CH0;	/*Lux calculation depends on this ratio*/
@@ -284,10 +283,10 @@ int8_t lightSensorLux(float* intensity)
 }
 
 /*Function to find if the light is dark*/
-bool isDark()
+bool isDark(uint16_t iCH0,uint16_t iCH1)
 {
 	float intensity;
-	if(lightSensorLux(&intensity))
+	if(lightSensorLux(&intensity, iCH0, iCH1))
 	{
 		return false;
 	}
@@ -303,10 +302,10 @@ bool isDark()
 
 
 /*Function to find if the light is dark*/
-bool isBright()
+bool isBright(uint16_t iCH0,uint16_t iCH1)
 {
 	float intensity;
-	if(lightSensorLux(&intensity))
+	if(lightSensorLux(&intensity, iCH0, iCH1))
 	{
 		return false;
 	}
@@ -383,7 +382,7 @@ int8_t logFromLight(mqd_t queue, int prio, char *message)
 	msg.priority = prio;
 	msg.source = LIGHT_DRIVER_ID;
 	msg.message = message;
-	retval = mq_send(queue, (const char *) &msg, sizeof(message_t), 0);
+	//retval = mq_send(queue, (const char *) &msg, sizeof(message_t), 0);
 	if (retval == -1)
 	{
 		logFromLight(logger_queue, LOG_ERROR,"Failed to send to queue! Exiting...\n");
