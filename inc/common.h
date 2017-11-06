@@ -34,10 +34,10 @@
 #define STATE_REQ_ONLY 4
 
 /* signal variables */
-#define HEARTBEAT_SIGNO    20
-#define LOGGER_SIGNO       21
-#define TEMP_DRIVER_SIGNO  10
-#define LIGHT_DRIVER_SIGNO 12
+#define HEARTBEAT_SIGNO    35
+#define LOGGER_SIGNO       36
+#define TEMP_DRIVER_SIGNO  37
+#define LIGHT_DRIVER_SIGNO 38
 #define CLIENT_SIGNO       39
 
 /* log levels*/

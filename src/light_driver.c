@@ -1,8 +1,6 @@
 #include "common.h"
 #include "light_driver.h"
 
-#define FAKE_SENSORS 1 /* for chase who doesn't have the sensors */
-
 int32_t i2cHandle;	/*File Descriptor for I2C access*/
 
 void * mainLightDriver(void *arg)
@@ -13,6 +11,9 @@ void * mainLightDriver(void *arg)
 	char in_buffer[4096];
 	message_t *in_message;
 	struct sigevent my_sigevent;
+	message_t out_message;
+	char dark_or_light[32];
+	bool isItDark;
 
 	initLightQueues(&main_queue, &logger_queue, &light_queue);
 	logFromLight(logger_queue, LOG_INFO, "Initialized LightQueues\n");	
@@ -44,8 +45,7 @@ void * mainLightDriver(void *arg)
 		sigwait(&set, &sig);
 		if (mq_notify(light_queue, &my_sigevent) == -1 )
 		{
-			printf("failed to light notify!\n");
-			return NULL;
+			;
 		}
 
 		in_message = (message_t *) malloc(sizeof(message_t));
@@ -61,7 +61,29 @@ void * mainLightDriver(void *arg)
 			/* process Light Driver Req */
 			if (in_message->id == LIGHT_DATA_REQ )
 			{
-				logFromLight(logger_queue, LOG_INFO, "Got Light Driver message\n");	
+				logFromLight(logger_queue, LOG_INFO, "Got Light Data Req\n");	
+				
+				/* TODO get light value */
+				isItDark = isDark();
+				if (isItDark)
+				{
+					sprintf(dark_or_light, "It is dark around me\n" );
+				}
+				else
+				{
+					sprintf(dark_or_light, "it is light around me\n" );
+				}
+
+				out_message.id = LIGHT_VALUE;
+				out_message.source = LIGHT_DRIVER_ID;
+				out_message.timestamp = time(NULL);
+				out_message.message = dark_or_light;
+				out_message.length = strlen(dark_or_light);					
+				retval = mq_send(main_queue, (const char *) &out_message, sizeof(message_t), 0);
+				if (retval == -1)
+				{
+					logFromLight(logger_queue, LOG_ERROR, "Failed to send reading from light_driver\n");
+				}
 			} 
 
 			else if (in_message->id == HEARTBEAT_REQ) 
@@ -110,11 +132,6 @@ int8_t initLightQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *light_queu
 /* Function to configure the light sensor */
 int8_t initLightDriver(void)
 {
-	if (FAKE_SENSORS)
-	{
-		printf("DID NOT ACTUALLY INIT LIGHT SENSOR\n");
-		return 0;
-	}
 
 	printf("Setup LightDriver\n");
 	if ((i2cHandle = open(I2C_FILE,O_RDWR)) < 0)
