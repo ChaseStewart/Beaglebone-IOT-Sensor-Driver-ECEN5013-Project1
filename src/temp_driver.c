@@ -1,7 +1,7 @@
 #include "common.h"
 #include "temp_driver.h"
 
-#define FAKE_SENSORS 1 /* for chase who doesn't have the sensors */
+//#define FAKE_SENSORS 1 /* for chase who doesn't have the sensors */
 
 
 int32_t i2cHandle;	/*File Descriptor for I2C access*/
@@ -14,7 +14,9 @@ void *mainTempDriver(void *arg)
 	char in_buffer[4096];
 	message_t *in_message;
 	struct sigevent my_sigevent;
-	
+	int16_t curTempCel = 0, curTempKel=0, curTempFah=0;
+	int8_t tempMsg[100];
+	message_t out_message;
 	/* Create queue for main thread */
 	initTempQueues(&main_queue, &logger_queue, &temp_queue);
 	logFromTemp(logger_queue, LOG_INFO, "Initialized Temp Queues\n");
@@ -45,7 +47,7 @@ void *mainTempDriver(void *arg)
 		sigwait(&set, &sig);
 		if (mq_notify(temp_queue, &my_sigevent) == -1 )
 		{
-			return NULL;
+			;
 		}
 
 		in_message = (message_t *) malloc(sizeof(message_t));
@@ -61,12 +63,39 @@ void *mainTempDriver(void *arg)
 			/* process Temp Driver Req */
 			if (in_message->id == TEMP_DATA_REQ )
 			{
-				logFromTemp(logger_queue, LOG_INFO, "Destroyed Temp Driver\n");
+				logFromTemp(logger_queue, LOG_INFO, "Temp Data Requested\n");
+				if(*(in_message->message) == 2)
+				{
+					sprintf(tempMsg,"%d K\n",curTempKel);
+				}
+				else if(*(in_message->message) == 1)
+				{
+					sprintf(tempMsg,"%d F\n", curTempFah);
+				}
+				else
+				{
+					sprintf(tempMsg,"%d C\n", curTempCel);
+				}
+				
+				out_message.id = TEMP_VALUE	;
+				out_message.source = TEMP_DRIVER_ID;
+				out_message.timestamp = time(NULL);
+				out_message.message = tempMsg;
+				out_message.length = strlen(tempMsg);
+				//logFromTemp(logger_queue, LOG_INFO, tempMsg);
+				retval = mq_send(main_queue, (const char *) &out_message, sizeof(message_t), 0);
+				if (retval == -1)
+				{
+					printf("Failed to send from temperature  with retval %d\n", retval);
+				}
 			} 
 
 			else if (in_message->id == HEARTBEAT_REQ) 
 			{
 				sendHeartbeat(main_queue, TEMP_DRIVER_ID);
+				currentTemperature(&curTempCel, UNIT_CELCIUS);
+				currentTemperature(&curTempFah, UNIT_FAHRENHEIT);
+				currentTemperature(&curTempKel, UNIT_KELVIN);
 			}
 		}
 	}
@@ -106,11 +135,6 @@ int8_t initTempQueues(mqd_t *main_queue, mqd_t *logger_queue, mqd_t *temp_queue)
 /* Function to configure the temp sensor */
 int8_t initTempDriver(void)
 {
-	if (FAKE_SENSORS)
-	{
-		printf("DID NOT ACTUALLY INIT TEMP SENSOR\n");
-		return 0;
-	}
 
 	printf("Setup Temp Driver\n");
 	if ((i2cHandle = open(I2C_FILE,O_RDWR)) < 0)

@@ -31,6 +31,9 @@ int main(int argc, char **argv)
 	sigset_t set;
 	pthread_t temp_thread, light_thread, logger_thread;
 	mqd_t main_queue, logger_queue, temp_queue, light_queue; 
+	message_t *in_message;
+
+	struct sigevent my_sigevent;
 
 	/* if no args provided, print help and exit */
 	if (argc == 1)
@@ -39,6 +42,7 @@ int main(int argc, char **argv)
 		return 0;
 	}
 	
+
 	/* catch Necessary Signals */
 	signal(SIGINT, handleCtrlC);
 	signal(SIGTERM, handleCtrlC);
@@ -112,6 +116,15 @@ int main(int argc, char **argv)
 		hbt_rsp[idx] = 0;
 	}
 
+	/* register to receive temp_driver signals */
+	my_sigevent.sigev_notify = SIGEV_SIGNAL;
+	my_sigevent.sigev_signo  = HEARTBEAT_SIGNO;
+	if (mq_notify(main_queue, &my_sigevent) == -1 )
+	{
+		return -1;
+	}
+	
+	char strPrint[100];
 	/* begin recurring heartbeat timer */		
 	logFromMain(logger_queue, LOG_INFO, "Starting main loop\n");
 	alarm(HEARTBEAT_PERIOD);
@@ -124,9 +137,43 @@ int main(int argc, char **argv)
 	while (main_state > STATE_SHUTDOWN)
 	{
 		sigwait(&set, &sig);
+		if (mq_notify(main_queue, &my_sigevent) == -1 )
+		{
+			;
+		}
 		if (sig == HEARTBEAT_SIGNO)
 		{
-			continue;	
+			
+			char in_buffer[1024];
+			in_message = (message_t *) malloc(sizeof(message_t));
+
+			/* process all messages and set corresponding hbt_rsp entry */
+			errno = 0;
+			while(errno != EAGAIN){
+				retval = mq_receive(main_queue, in_buffer, SIZE_MAX, NULL);
+				if (retval <= 0 && errno != EAGAIN)
+				{
+					printf("Error in recieve:%d ", errno);
+					break;
+				}
+				/* process heartbeat_response messages */
+				in_message = (message_t *)in_buffer;
+				if (in_message->id == HEARTBEAT_RSP)
+				{
+					hbt_rsp[in_message->source] = 1;
+				}
+				if(in_message->id == TEMP_VALUE)
+				{
+					sprintf(strPrint,"Temperature in Main: %s\n", in_message->message);
+					logFromMain(logger_queue, LOG_INFO, strPrint);
+				}
+				if(in_message->id == LIGHT_VALUE)
+				{
+					sprintf(strPrint,"Light in Main: %s\n", in_message->message);
+					logFromMain(logger_queue, LOG_INFO, strPrint);
+				}
+			}
+			errno=0;
 		}
 
 		else if (sig == SIGALRM)
@@ -134,9 +181,29 @@ int main(int argc, char **argv)
 			/* for the first time, only request a heartbeat*/
 			if (main_state == STATE_STARTUP)
 			{
+				char a = 0;
 				main_state = STATE_REQ_RSP;
 				reqHeartbeats(logger_queue, temp_queue, light_queue);
 				pthread_kill(logger_thread, LOGGER_SIGNO);
+				msg.id = TEMP_DATA_REQ;
+				msg.timestamp = time(NULL);
+				msg.length = sizeof(a);
+				msg.source = MAIN_ID;
+				msg.message = &a;
+				retval = mq_send(temp_queue, (const char *) &msg, sizeof(message_t), 0);
+				if (retval == -1)
+				{
+					printf("Failed to send Temp Req from main to queue! Exiting...\n");
+					return 1;
+				}
+				pthread_kill(temp_thread, TEMP_DRIVER_SIGNO);
+				msg.id = LIGHT_DATA_REQ;
+				retval = mq_send(light_queue, (const char *) &msg, sizeof(message_t), 0);
+				if (retval == -1)
+				{
+					printf("Failed to send Light Req from main to queue! Exiting...\n");
+					return 1;
+				}
 			}
 
 			/* for the second time, read current heartbeats then request more*/
@@ -146,13 +213,12 @@ int main(int argc, char **argv)
 				reqHeartbeats(logger_queue, temp_queue, light_queue);
 				pthread_kill(logger_thread, LOGGER_SIGNO);
 			}
+			alarm(HEARTBEAT_PERIOD);
 		}
 		else
 		{
 			logFromMain(logger_queue, LOG_ERROR, "Something bad happened!\n");
 		}
-
-		alarm(HEARTBEAT_PERIOD);
 	}
 
 	strcpy(change_file_name, "test_file_change.txt");
@@ -269,7 +335,7 @@ int8_t processHeartbeats(mqd_t main_queue, mqd_t logger_queue)
 	char in_buffer[4096];
 	char heartbeat_msg[1024];
 	message_t *in_message;
-	
+	char strPrint[100];
 	in_message = (message_t *) malloc(sizeof(message_t));
 
 	/* process all messages and set corresponding hbt_rsp entry */
@@ -286,6 +352,11 @@ int8_t processHeartbeats(mqd_t main_queue, mqd_t logger_queue)
 		if (in_message->id == HEARTBEAT_RSP)
 		{
 			hbt_rsp[in_message->source] = 1;
+		}
+		if(in_message->id == TEMP_VALUE)
+		{
+			sprintf(strPrint,"Temperature in Main2: %s\n", in_message->message);
+			logFromMain(logger_queue, LOG_INFO, strPrint);
 		}
 	}
 
