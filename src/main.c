@@ -25,6 +25,7 @@ int main(int argc, char **argv)
 {
 	int retval, curr_arg, sig;
 	char out_file_name[MAX_FILELEN];
+	char change_file_name[MAX_FILELEN];
 	logger_args *my_log_args;
 	message_t msg;
 	sigset_t set;
@@ -112,8 +113,8 @@ int main(int argc, char **argv)
 	}
 
 	/* begin recurring heartbeat timer */		
-	alarm(HEARTBEAT_PERIOD);
 	logFromMain(logger_queue, LOG_INFO, "Starting main loop\n");
+	alarm(HEARTBEAT_PERIOD);
 
 	sigemptyset(&set);
 	sigaddset(&set, HEARTBEAT_SIGNO);
@@ -153,7 +154,21 @@ int main(int argc, char **argv)
 
 		alarm(HEARTBEAT_PERIOD);
 	}
-	logFromMain(logger_queue, LOG_INFO, "exiting program\n");
+
+	strcpy(change_file_name, "test_file_change.txt");
+	msg.id = FILE_CHANGE;
+	msg.timestamp = time(NULL);
+	msg.length = strlen(change_file_name);
+	msg.source = MAIN_ID;
+	msg.message = change_file_name;
+	retval = mq_send(logger_queue, (const char *) &msg, sizeof(message_t), 0);
+	if (retval == -1)
+	{
+		printf("Failed to send change_file from main to queue! Exiting...\n");
+		return 1;
+	}
+
+	//logFromMain(logger_queue, LOG_INFO, "exiting program\n");
 
 	/* Kill the Temp Driver thread */
 	temp_state  = STATE_SHUTDOWN;

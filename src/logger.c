@@ -67,6 +67,8 @@ void * mainLogger(void *arg)
 			{
 				logMessage(in_message);
 			} 
+			if (in_message->id == FILE_CHANGE )
+				out_file = logFileChange(in_message);
 
 			else if (in_message->id == HEARTBEAT_REQ) 
 			{
@@ -144,12 +146,34 @@ int8_t logMessage(message_t *in_message)
 	retval = sprintf( outMessage ,"[%s][%s][%d] %s", dbg_lvl, mySource, in_message->timestamp, in_message->message);
 	if (retval <= 0)
 	{
-		printf("Error logging output!");
+		printf("Error logging output!\n");
 	}
 	fputs(outMessage, out_file);
 
 	return 0;
 }
+
+FILE *logFileChange(message_t *newName)
+{
+	FILE *result;
+	mqd_t unused;
+
+	if (newName->id == FILE_CHANGE)
+	{
+		fclose(out_file);
+		out_file = fopen(newName->message, "a");
+		if (out_file)
+		{
+			logFromLogger(unused, LOG_INFO, "Log file opened\n");
+			return out_file;
+		}
+		else
+		{
+			return NULL;
+		}
+	}	
+}
+
 
 FILE *initLogger(mqd_t queue, void *arg)
 {

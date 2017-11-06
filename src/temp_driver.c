@@ -59,7 +59,7 @@ void *mainTempDriver(void *arg)
 			in_message = (message_t *)in_buffer;
 
 			/* process Temp Driver Req */
-			if (in_message->id == TEMP_DRIVER )
+			if (in_message->id == TEMP_DATA_REQ )
 			{
 				logFromTemp(logger_queue, LOG_INFO, "Destroyed Temp Driver\n");
 			} 

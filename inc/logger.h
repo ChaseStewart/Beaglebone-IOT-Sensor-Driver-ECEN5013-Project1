@@ -26,6 +26,13 @@ FILE *initLogger(mqd_t queue, void *arg);
 /*Function to print the logger structure onto the log file*/
 int8_t logMessage(message_t *in_message);
 
+/* 
+ * put a message into the logfile from the logger
+ * NOTICE queue is unused + only for compatibility here
+ */
 int8_t logFromLogger(mqd_t queue, int prio, char *message);
+
+/* change the logfile */
+FILE *logFileChange(message_t *newName);
 
 #endif

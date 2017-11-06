@@ -59,7 +59,7 @@ void * mainLightDriver(void *arg)
 			in_message = (message_t *)in_buffer;
 
 			/* process Light Driver Req */
-			if (in_message->id == LIGHT_DRIVER )
+			if (in_message->id == LIGHT_DATA_REQ )
 			{
 				logFromLight(logger_queue, LOG_INFO, "Got Light Driver message\n");	
 			} 
