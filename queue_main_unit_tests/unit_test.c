@@ -47,16 +47,33 @@ void test_queue(void)
 
 }
 
-void test_logger(void)
+void test_messages(void)
 {
+        mqd_t main_queue ;
+	int retval, mylen; 
+	char message[] = "Hello";	
+	char in_buffer[1024];
+	
+	mylen= strlen(message);
+
 	TEST_ASSERT_GREATER_THAN(0, 1);
+	printf("Test open w right name\n");
+        main_queue = mq_open(MAIN_QUEUE_NAME, O_CREAT | O_RDWR | O_NONBLOCK, 0755, NULL);
+        TEST_ASSERT_GREATER_THAN(-1, (int32_t)main_queue);
+       
+	retval = mq_send(main_queue, (const char *) &message, mylen, 0 );
+        TEST_ASSERT_EQUAL_INT32(0, (int32_t)retval);
+	
+	retval = mq_receive(main_queue, in_buffer, SIZE_MAX, NULL );
+        TEST_ASSERT_GREATER_THAN(0, (int32_t)retval);
+ 
 }
 
 
 int main(void)
 {
 	UNITY_BEGIN();
-	RUN_TEST(test_logger);
 	RUN_TEST(test_queue);
+	RUN_TEST(test_messages);
 	return UNITY_END();
 }
